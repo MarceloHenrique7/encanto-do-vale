@@ -5,7 +5,7 @@ const carouselItems = [
   { id: 'slide-2', title: 'Bolos de Aniversário', subtitle: 'As crianças vão adorar', imageSrc: 'https://i.ibb.co/spQNBhMD/Bolo-de-anivers-rio-com-topo-fofo.png' },
   { id: 'slide-3', title: 'Bolo de Nutella Vulcão', subtitle: 'Aqui a Felicidade Não tem preço', imageSrc: 'https://i.ibb.co/1JYpJnTF/Bolo-de-lava-com-Nutella.png' },
   { id: 'slide-4', title: 'Copo Da Felicidade', subtitle: 'Delicioso copo com recheio de explodir o sabor', imageSrc: 'https://i.ibb.co/bRq8BKmf/Chat-GPT-Image-5-de-abr-de-2026-18-32-49.png' },
-  { id: 'slide-5', title: 'Brownie de Nutella', subtitle: 'Delicioso brownie com recheio de Nutella', imageSrc: 'https://i.ibb.co/jkwMcSCk/download-11.jpg' },
+  { id: 'slide-5', title: 'Brownie de Nutella', subtitle: 'Delicioso brownie com recheio de Nutella', imageSrc: 'https://i.ibb.co/svK6m4TM/Brownie-com-Nutella-e-morangos.png' },
 ]
 
 export default function Header() {
