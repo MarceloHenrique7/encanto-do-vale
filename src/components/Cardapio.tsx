@@ -67,7 +67,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
   )
 
   return (
-    <section className="section menu-section" id="cardapio">
+    <section  id="cardapio" className="section menu-section">
       <div className="menu-shell" id="encomende">
         <div className="menu-header">
           <div className="section-heading menu-heading">

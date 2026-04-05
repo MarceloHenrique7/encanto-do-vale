@@ -10,7 +10,7 @@ export default function Hero({
   instagramLink,
 }: HeroProps) {
   return (
-    <section className="hero-section" id="cardapio">
+    <section className="hero-section" id="hero">
       <div className="hero-section__glow" />
 
       <div className="hero-layout">
