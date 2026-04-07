@@ -1,23 +1,50 @@
 import { useMemo, useState } from 'react'
 
 import { categories, products } from '@/data/landing'
+import type { Product } from '@/types/landing'
 
 type CardapioProps = {
-  onAddToCart: (productId: string) => void
+  onAddToCart: (productId: string, optionId: string | undefined, quantity: number) => void
 }
 
 export default function Cardapio({ onAddToCart }: CardapioProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState('destaques')
   const [selectedFulfillment, setSelectedFulfillment] = useState<
     'todos' | 'encomenda' | 'entrega-pronta'
-  >('todos')
+  >('encomenda')
   const [selectedProductId, setSelectedProductId] = useState('todos')
   const [selectedPriceOrder, setSelectedPriceOrder] = useState<
     'default' | 'asc' | 'desc'
-  >('default')
+  >('asc')
+  const [selectedOptionIds, setSelectedOptionIds] = useState<Record<string, string>>({})
+  const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
 
-  function parsePrice(price: string) {
-    return Number(price.replace(/[^\d,]/g, '').replace(',', '.'))
+  function formatCurrency(value: number) {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value)
+  }
+
+  function getSelectedOption(product: Product) {
+    if (!product.options?.length) {
+      return undefined
+    }
+
+    const selectedOptionId = selectedOptionIds[product.id]
+
+    return (
+      product.options.find((option) => option.id === selectedOptionId) ??
+      product.options[0]
+    )
+  }
+
+  function getUnitPrice(product: Product) {
+    return getSelectedOption(product)?.price ?? product.basePrice
+  }
+
+  function getSelectedQuantity(productId: string) {
+    return selectedQuantities[productId] ?? 1
   }
 
   const categoryProducts = useMemo(() => {
@@ -44,13 +71,13 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
 
     if (selectedPriceOrder === 'asc') {
       return [...filtered].sort(
-        (first, second) => parsePrice(first.price) - parsePrice(second.price),
+        (first, second) => first.basePrice - second.basePrice,
       )
     }
 
     if (selectedPriceOrder === 'desc') {
       return [...filtered].sort(
-        (first, second) => parsePrice(second.price) - parsePrice(first.price),
+        (first, second) => second.basePrice - first.basePrice,
       )
     }
 
@@ -74,7 +101,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
             <p className="section-label">Cardapio</p>
             <h2>Encontre o doce ideal com um filtro rapido, intuitivo e pronto para pedido.</h2>
             <p className="menu-description">
-              Selecione a categoria, refine por disponibilidade e escolha um
+              Selecione a categoria, refine por atendimento e escolha um
               produto especifico se quiser ir direto ao ponto.
             </p>
           </div>
@@ -99,7 +126,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
           </label>
 
           <label className="menu-filterField">
-            <span>Disponibilidade</span>
+            <span>Atendimento</span>
             <select
               value={selectedFulfillment}
               onChange={(event) =>
@@ -161,7 +188,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
             <div className="menu-grid">
               {filteredProducts.map((product) => (
                 <article
-                  className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}`}
+                  className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
                   key={product.id}
                 >
                   <div className="menu-card-imageWrap">
@@ -177,9 +204,15 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
                       </div>
                     )}
 
-                    {product.isPromo ? (
-                      <span className="menu-card-badge">Promocional</span>
-                    ) : null}
+                    {product.isAvailable ? (
+                      product.isPromo ? (
+                        <span className="menu-card-badge">Promocional</span>
+                      ) : null
+                    ) : (
+                      <span className="menu-card-badge menu-card-badge--unavailable">
+                        Indisponivel
+                      </span>
+                    )}
                   </div>
 
                   <div className="menu-card-content">
@@ -187,11 +220,36 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
                       <span className="menu-card-category">
                         {product.primaryCategoryLabel}
                       </span>
-                      <strong className="menu-card-price">{product.price}</strong>
+                      <strong className="menu-card-price">
+                        {formatCurrency(getUnitPrice(product))}
+                      </strong>
                     </div>
 
                     <h4>{product.name}</h4>
                     <p>{product.description}</p>
+
+                    {product.options?.length ? (
+                      <div className="menu-card-optionGroup">
+                        <label className="menu-card-field">
+                          <span>Tamanho</span>
+                          <select
+                            value={getSelectedOption(product)?.id ?? ''}
+                            onChange={(event) =>
+                              setSelectedOptionIds((current) => ({
+                                ...current,
+                                [product.id]: event.target.value,
+                              }))
+                            }
+                          >
+                            {product.options.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label} • {formatCurrency(option.price)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
 
                     <div className="menu-card-fulfillment">
                       <span
@@ -206,15 +264,55 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
                           ? 'feito sob pedido com prazo combinado'
                           : 'preparo agil para entrega no momento do pedido'}
                       </span>
+                      {product.options?.length ? (
+                        <span className="menu-card-fulfillmentText">
+                          {getSelectedOption(product)?.quantityLabel}
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="menu-card-actions">
+                      <label className="menu-card-field">
+                        <span>Quantidade</span>
+                        <select
+                          value={String(getSelectedQuantity(product.id))}
+                          onChange={(event) =>
+                            setSelectedQuantities((current) => ({
+                              ...current,
+                              [product.id]: Number(event.target.value),
+                            }))
+                          }
+                          disabled={!product.isAvailable}
+                        >
+                          {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                            (quantity) => (
+                              <option key={quantity} value={quantity}>
+                                {quantity} unidade{quantity > 1 ? 's' : ''}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+
+                      <p className="menu-card-total">
+                        Total: {formatCurrency(getUnitPrice(product) * getSelectedQuantity(product.id))}
+                      </p>
+
                       <button
                         type="button"
-                        className="menu-card-cartButton"
-                        onClick={() => onAddToCart(product.id)}
+                        className={`menu-card-cartButton${product.isAvailable ? '' : ' is-disabled'}`}
+                        onClick={() =>
+                          onAddToCart(
+                            product.id,
+                            getSelectedOption(product)?.id,
+                            getSelectedQuantity(product.id),
+                          )
+                        }
+                        disabled={!product.isAvailable}
                       >
-                        Adicionar ao carrinho
+                        {product.isAvailable
+                          ? 'Adicionar ao carrinho'
+                          : 'Item indisponivel'}
                       </button>
                     </div>
                   </div>

@@ -6,12 +6,12 @@ type FloatingCartProps = {
   isOpen: boolean
   onOpen: () => void
   onClose: () => void
-  onUpdateQuantity: (productId: string, nextQuantity: number) => void
+  onUpdateQuantity: (
+    productId: string,
+    optionId: string | undefined,
+    nextQuantity: number,
+  ) => void
   whatsappPhone: string
-}
-
-function parsePrice(price: string) {
-  return Number(price.replace(/[^\d,]/g, '').replace(',', '.'))
 }
 
 function formatCurrency(value: number) {
@@ -47,10 +47,19 @@ export default function FloatingCart({
         return null
       }
 
+      const selectedOption = item.optionId
+        ? product.options?.find((option) => option.id === item.optionId)
+        : undefined
+      const unitPrice = selectedOption?.price ?? product.basePrice
+
       return {
         ...product,
+        optionId: item.optionId,
+        optionLabel: selectedOption?.label,
+        optionQuantityLabel: selectedOption?.quantityLabel,
+        unitPrice,
         quantity: item.quantity,
-        subtotal: parsePrice(product.price) * item.quantity,
+        subtotal: unitPrice * item.quantity,
       }
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -61,7 +70,7 @@ export default function FloatingCart({
   const lines = cartProducts.map(
     (item) =>
       `- ${item.name}
-  Quantidade: ${item.quantity}
+  ${item.optionLabel ? `Tamanho: ${item.optionLabel}\n` : ''}  Quantidade: ${item.quantity}
   Tipo: ${item.fulfillmentType === 'encomenda' ? 'Encomenda' : 'Entrega pronta'}
   Subtotal: ${formatCurrency(item.subtotal)}`,
   )
@@ -130,28 +139,35 @@ Podem me confirmar disponibilidade, prazo e forma de entrega?`
           <div className="cart-body">
             {cartProducts.length ? (
               cartProducts.map((item) => (
-                <article className="cart-item" key={item.id}>
+                <article className="cart-item" key={`${item.id}-${item.optionId ?? 'default'}`}>
                   <div className="cart-item-copy">
                     <strong>{item.name}</strong>
+                    {item.optionLabel ? <span>{item.optionLabel}</span> : null}
                     <span>
                       {item.fulfillmentType === 'encomenda'
                         ? 'Encomenda'
                         : 'Entrega pronta'}
                     </span>
-                    <small>{formatCurrency(item.subtotal)}</small>
+                    <small>
+                      {formatCurrency(item.unitPrice)} cada • {formatCurrency(item.subtotal)}
+                    </small>
                   </div>
 
                   <div className="cart-item-controls">
                     <button
                       type="button"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                      onClick={() =>
+                        onUpdateQuantity(item.id, item.optionId, item.quantity - 1)
+                      }
                     >
                       -
                     </button>
                     <span>{item.quantity}</span>
                     <button
                       type="button"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                      onClick={() =>
+                        onUpdateQuantity(item.id, item.optionId, item.quantity + 1)
+                      }
                     >
                       +
                     </button>
