@@ -18,12 +18,25 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
   >('asc')
   const [selectedOptionIds, setSelectedOptionIds] = useState<Record<string, string>>({})
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
+  const [confirmingProductId, setConfirmingProductId] = useState<string | null>(null)
 
   function formatCurrency(value: number) {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(value)
+  }
+
+  function formatStartingPrice(value: number) {
+    return `A partir de ${formatCurrency(value)}`
+  }
+
+  function truncateDescription(text: string, maxLength = 50) {
+    if (text.length <= maxLength) {
+      return text
+    }
+
+    return `${text.slice(0, maxLength).trimEnd()}...`
   }
 
   function getSelectedOption(product: Product) {
@@ -45,6 +58,17 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
 
   function getSelectedQuantity(productId: string) {
     return selectedQuantities[productId] ?? 1
+  }
+
+  function closeConfirmation() {
+    setConfirmingProductId(null)
+  }
+
+  function resetFilters() {
+    setSelectedCategoryId('destaques')
+    setSelectedFulfillment('encomenda')
+    setSelectedProductId('todos')
+    setSelectedPriceOrder('asc')
   }
 
   const categoryProducts = useMemo(() => {
@@ -92,14 +116,16 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
   const activeCategory = categories.find(
     (category) => category.id === selectedCategoryId,
   )
+  const confirmingProduct =
+    products.find((product) => product.id === confirmingProductId) ?? null
 
   return (
-    <section  id="cardapio" className="section menu-section">
+    <section id="cardapio" className="section menu-section">
       <div className="menu-shell" id="encomende">
         <div className="menu-header">
           <div className="section-heading menu-heading">
             <p className="section-label">Cardapio</p>
-            <h2>Encontre o doce ideal com um filtro rapido, intuitivo e pronto para pedido.</h2>
+            <h2>Encontre oque vai te fazer feliz hoje.</h2>
             <p className="menu-description">
               Selecione a categoria, refine por atendimento e escolha um
               produto especifico se quiser ir direto ao ponto.
@@ -108,6 +134,17 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
         </div>
 
         <div className="menu-filters">
+          <div className="menu-filters-bar">
+            <span className="menu-filters-kicker">Refinar vitrine</span>
+            <button
+              type="button"
+              className="menu-filters-reset"
+              onClick={resetFilters}
+            >
+              Limpar
+            </button>
+          </div>
+
           <label className="menu-filterField">
             <span>Categoria</span>
             <select
@@ -220,94 +257,19 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
                       <span className="menu-card-category">
                         {product.primaryCategoryLabel}
                       </span>
-                      <strong className="menu-card-price">
-                        {formatCurrency(getUnitPrice(product))}
-                      </strong>
                     </div>
 
+                    <strong className="menu-card-price">
+                      {formatStartingPrice(product.basePrice)}
+                    </strong>
                     <h4>{product.name}</h4>
-                    <p>{product.description}</p>
-
-                    {product.options?.length ? (
-                      <div className="menu-card-optionGroup">
-                        <label className="menu-card-field">
-                          <span>Tamanho</span>
-                          <select
-                            value={getSelectedOption(product)?.id ?? ''}
-                            onChange={(event) =>
-                              setSelectedOptionIds((current) => ({
-                                ...current,
-                                [product.id]: event.target.value,
-                              }))
-                            }
-                          >
-                            {product.options.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.label} • {formatCurrency(option.price)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    ) : null}
-
-                    <div className="menu-card-fulfillment">
-                      <span
-                        className={`menu-card-fulfillmentBadge menu-card-fulfillmentBadge--${product.fulfillmentType}`}
-                      >
-                        {product.fulfillmentType === 'encomenda'
-                          ? 'Encomenda'
-                          : 'Entrega pronta'}
-                      </span>
-                      <span className="menu-card-fulfillmentText">
-                        {product.fulfillmentType === 'encomenda'
-                          ? 'feito sob pedido com prazo combinado'
-                          : 'preparo agil para entrega no momento do pedido'}
-                      </span>
-                      {product.options?.length ? (
-                        <span className="menu-card-fulfillmentText">
-                          {getSelectedOption(product)?.quantityLabel}
-                        </span>
-                      ) : null}
-                    </div>
+                    <p>{truncateDescription(product.description)}</p>
 
                     <div className="menu-card-actions">
-                      <label className="menu-card-field">
-                        <span>Quantidade</span>
-                        <select
-                          value={String(getSelectedQuantity(product.id))}
-                          onChange={(event) =>
-                            setSelectedQuantities((current) => ({
-                              ...current,
-                              [product.id]: Number(event.target.value),
-                            }))
-                          }
-                          disabled={!product.isAvailable}
-                        >
-                          {Array.from({ length: 10 }, (_, index) => index + 1).map(
-                            (quantity) => (
-                              <option key={quantity} value={quantity}>
-                                {quantity} unidade{quantity > 1 ? 's' : ''}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-
-                      <p className="menu-card-total">
-                        Total: {formatCurrency(getUnitPrice(product) * getSelectedQuantity(product.id))}
-                      </p>
-
                       <button
                         type="button"
                         className={`menu-card-cartButton${product.isAvailable ? '' : ' is-disabled'}`}
-                        onClick={() =>
-                          onAddToCart(
-                            product.id,
-                            getSelectedOption(product)?.id,
-                            getSelectedQuantity(product.id),
-                          )
-                        }
+                        onClick={() => setConfirmingProductId(product.id)}
                         disabled={!product.isAvailable}
                       >
                         {product.isAvailable
@@ -330,6 +292,161 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
           )}
         </div>
       </div>
+
+      {confirmingProduct ? (
+        <div className="product-confirmation-overlay">
+          <button
+            type="button"
+            className="product-confirmation-backdrop"
+            aria-label="Fechar confirmacao do produto"
+            onClick={closeConfirmation}
+          />
+
+          <div
+            className="product-confirmation-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-confirmation-title"
+          >
+            <div className="product-confirmation-media">
+              {confirmingProduct.imageSrc ? (
+                <img
+                  src={confirmingProduct.imageSrc}
+                  alt={confirmingProduct.name}
+                  className="product-confirmation-image"
+                />
+              ) : (
+                <div className="product-confirmation-placeholder">
+                  imagem do produto
+                </div>
+              )}
+            </div>
+
+            <div className="product-confirmation-content">
+              <div className="product-confirmation-header">
+                <span className="menu-card-category">
+                  {confirmingProduct.primaryCategoryLabel}
+                </span>
+                <button
+                  type="button"
+                  className="product-confirmation-close"
+                  onClick={closeConfirmation}
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <h3 id="product-confirmation-title">{confirmingProduct.name}</h3>
+              <strong className="product-confirmation-price">
+                {formatStartingPrice(confirmingProduct.basePrice)}
+              </strong>
+              <p className="product-confirmation-description">
+                {confirmingProduct.description}
+              </p>
+
+              <div className="menu-card-fulfillment">
+                <span
+                  className={`menu-card-fulfillmentBadge menu-card-fulfillmentBadge--${confirmingProduct.fulfillmentType}`}
+                >
+                  {confirmingProduct.fulfillmentType === 'encomenda'
+                    ? 'Encomenda'
+                    : 'Entrega pronta'}
+                </span>
+                <span className="menu-card-fulfillmentText">
+                  {confirmingProduct.fulfillmentType === 'encomenda'
+                    ? 'feito sob pedido com prazo combinado'
+                    : 'preparo agil para entrega no momento do pedido'}
+                </span>
+              </div>
+
+              {confirmingProduct.options?.length ? (
+                <div className="menu-card-optionGroup">
+                  <label className="menu-card-field">
+                    <span>Tamanho</span>
+                    <select
+                      value={getSelectedOption(confirmingProduct)?.id ?? ''}
+                      onChange={(event) =>
+                        setSelectedOptionIds((current) => ({
+                          ...current,
+                          [confirmingProduct.id]: event.target.value,
+                        }))
+                      }
+                    >
+                      {confirmingProduct.options.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label} • {formatCurrency(option.price)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {getSelectedOption(confirmingProduct)?.quantityLabel ? (
+                    <span className="menu-card-fulfillmentText">
+                      {getSelectedOption(confirmingProduct)?.quantityLabel}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="product-confirmation-actions">
+                <label className="menu-card-field">
+                  <span>Quantidade</span>
+                  <select
+                    value={String(getSelectedQuantity(confirmingProduct.id))}
+                    onChange={(event) =>
+                      setSelectedQuantities((current) => ({
+                        ...current,
+                        [confirmingProduct.id]: Number(event.target.value),
+                      }))
+                    }
+                    disabled={!confirmingProduct.isAvailable}
+                  >
+                    {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                      (quantity) => (
+                        <option key={quantity} value={quantity}>
+                          {quantity} unidade{quantity > 1 ? 's' : ''}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+
+                <p className="menu-card-total">
+                  Total: {formatCurrency(
+                    getUnitPrice(confirmingProduct) *
+                      getSelectedQuantity(confirmingProduct.id),
+                  )}
+                </p>
+
+                <div className="product-confirmation-buttons">
+                  <button
+                    type="button"
+                    className="product-confirmation-secondary"
+                    onClick={closeConfirmation}
+                  >
+                    Continuar vendo
+                  </button>
+                  <button
+                    type="button"
+                    className={`menu-card-cartButton${confirmingProduct.isAvailable ? '' : ' is-disabled'}`}
+                    onClick={() => {
+                      onAddToCart(
+                        confirmingProduct.id,
+                        getSelectedOption(confirmingProduct)?.id,
+                        getSelectedQuantity(confirmingProduct.id),
+                      )
+                      closeConfirmation()
+                    }}
+                    disabled={!confirmingProduct.isAvailable}
+                  >
+                    Confirmar e adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

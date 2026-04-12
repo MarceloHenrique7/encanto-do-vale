@@ -56,7 +56,7 @@ export const products: Product[] = [
     name: 'Bolo de Aniversario Brigadeiro Supremo',
     description:
       'Massa macia de chocolate, recheio intenso de brigadeiro e acabamento festivo pensado para mesas de aniversario cheias de destaque.',
-    price: 'R$ A partir de 109,90',
+    price: 'A partir de R$ 109,90',
     basePrice: 109.9,
     imageSrc: 'https://i.ibb.co/XxD5M1jS/Brigadeiro-Supremo-um-bolo-irresist-vel.png',
     fulfillmentType: 'encomenda',
@@ -113,8 +113,8 @@ export const products: Product[] = [
     categoryIds: ['copos'],
   },
   {
-    id: 'torta-morango-ninho',
-    name: 'Torta de Morango com Ninho',
+    id: 'bolo-morango-ninho',
+    name: 'Bolo de Morango com Ninho',
     description:
       'Base delicada, recheio cremoso e morangos frescos para uma sobremesa leve e marcante.',
     price: 'R$ 89,90',
