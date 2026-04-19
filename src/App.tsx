@@ -81,8 +81,8 @@ export default function App() {
         whatsappPhone="5587988028002"
       />
       <Header />
-      <Cardapio onAddToCart={handleAddToCart} />
       <HeaderCarousel />
+      <Cardapio onAddToCart={handleAddToCart} />
     
       <Hero 
       heroImage="https://i.ibb.co/8gmdTx7N/Ovos-de-P-scoa-com-brigadeiro-e-morango.png"

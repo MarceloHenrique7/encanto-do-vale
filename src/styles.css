@@ -126,7 +126,100 @@ a {
 
 .hero {
   padding-top: 1rem;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.mothers-day-slide {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin: 0 0 2rem;
+  padding: 1rem;
+  border: 1px solid rgba(122, 74, 27, 0.12);
+  border-radius: 1.5rem;
+  background: linear-gradient(135deg, #fff9f6 0%, #f8e9e2 48%, #fffdf9 100%);
+  box-shadow: 0 24px 54px rgba(91, 51, 40, 0.1);
+  overflow: hidden;
+}
+
+.mothers-day-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 2.2rem);
+}
+
+.mothers-day-kicker {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(122, 74, 27, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #7a4a2f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.mothers-day-copy h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: #4b261d;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 3.8rem;
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.mothers-day-copy p {
+  max-width: 34rem;
+  margin: 0;
+  color: #725746;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.mothers-day-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  min-height: 3rem;
+  padding: 0 1.15rem;
+  border-radius: 999px;
+  background: #5b3328;
+  color: #fff8f2;
+  font-weight: 800;
+  box-shadow: 0 12px 26px rgba(91, 51, 40, 0.18);
+}
+
+.mothers-day-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  align-content: center;
+}
+
+.mothers-day-photo {
+  overflow: hidden;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(122, 74, 27, 0.1);
+  border-radius: 1.1rem;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+}
+
+.mothers-day-photo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .header-carousel {
@@ -802,13 +895,26 @@ a {
   padding-top: 3rem;
 }
 
+.menu-section--mothers-day {
+  position: relative;
+}
+
 .menu-shell {
+  position: relative;
   padding: clamp(1.25rem, 3vw, 2rem);
   background: rgba(255, 250, 246, 0.7);
   border: 1px solid rgba(122, 74, 27, 0.1);
   border-radius: 2rem;
   box-shadow: 0 24px 50px rgba(91, 51, 40, 0.08);
   backdrop-filter: blur(12px);
+}
+
+.menu-section--mothers-day .menu-shell {
+  background:
+    linear-gradient(135deg, rgba(255, 247, 250, 0.94), rgba(252, 239, 230, 0.88)),
+    rgba(255, 250, 246, 0.88);
+  border-color: rgba(177, 82, 105, 0.22);
+  box-shadow: 0 30px 64px rgba(112, 48, 58, 0.12);
 }
 
 .menu-header {
@@ -828,6 +934,41 @@ a {
   color: var(--text-muted);
   font-size: 1rem;
   line-height: 1.7;
+}
+
+.menu-mothers-day-banner {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1.2rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  border: 1px solid rgba(177, 82, 105, 0.18);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.88), rgba(255, 239, 245, 0.72)),
+    #fff9f6;
+  box-shadow: 0 16px 34px rgba(112, 48, 58, 0.08);
+}
+
+.menu-mothers-day-banner span {
+  color: #a34b63;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.menu-mothers-day-banner strong {
+  color: #4b261d;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(1.65rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.menu-mothers-day-banner p {
+  max-width: 42rem;
+  margin: 0;
+  color: #78584d;
+  line-height: 1.65;
 }
 
 .menu-cartTrigger {
@@ -891,6 +1032,12 @@ a {
   background: rgba(255, 255, 255, 0.48);
 }
 
+.menu-section--mothers-day .menu-filters {
+  border-color: rgba(177, 82, 105, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 239, 245, 0.5));
+}
+
 .menu-filters-bar {
   display: flex;
   grid-column: 1 / -1;
@@ -952,6 +1099,11 @@ a {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.menu-section--mothers-day .menu-panel {
+  border-color: rgba(177, 82, 105, 0.18);
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .menu-panel-header {
   display: flex;
   justify-content: space-between;
@@ -985,6 +1137,11 @@ a {
   white-space: nowrap;
 }
 
+.menu-section--mothers-day .menu-panel-count {
+  background: rgba(255, 230, 238, 0.82);
+  color: #8f3f55;
+}
+
 .menu-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -992,6 +1149,7 @@ a {
 }
 
 .menu-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1000,11 +1158,34 @@ a {
   border-radius: 1.35rem;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(252, 245, 239, 0.9));
   box-shadow: 0 14px 24px rgba(91, 51, 40, 0.07);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.menu-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 34px rgba(91, 51, 40, 0.12);
 }
 
 .menu-card--promo {
   background: linear-gradient(180deg, rgba(255, 246, 238, 0.98), rgba(245, 228, 214, 0.95));
   border-color: rgba(122, 74, 27, 0.18);
+}
+
+.menu-card--mothers-day {
+  border-color: rgba(177, 82, 105, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 250, 0.98), rgba(255, 240, 245, 0.94));
+  box-shadow: 0 18px 34px rgba(112, 48, 58, 0.1);
+}
+
+.menu-card--mothers-day::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 4px solid rgba(177, 82, 105, 0.42);
+  pointer-events: none;
 }
 
 .menu-card--unavailable {
@@ -1039,6 +1220,13 @@ a {
   font-size: 0.88rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.menu-card--mothers-day .menu-card-placeholder {
+  border-color: rgba(177, 82, 105, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 231, 238, 0.78));
+  color: #a34b63;
 }
 
 .menu-card-badge {
@@ -1079,6 +1267,12 @@ a {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.menu-card--mothers-day .menu-card-category,
+.menu-section--mothers-day .menu-panel-label,
+.menu-section--mothers-day .menu-filters-kicker {
+  color: #a34b63;
 }
 
 .menu-card-price {
@@ -1192,6 +1386,13 @@ a {
   font: inherit;
   font-size: 0.88rem;
   font-weight: 700;
+}
+
+.menu-card--mothers-day .menu-card-cartButton {
+  border-color: rgba(177, 82, 105, 0.22);
+  background: linear-gradient(135deg, #5b3328, #a34b63);
+  color: #fff8f2;
+  box-shadow: 0 12px 24px rgba(112, 48, 58, 0.16);
 }
 
 .menu-card-cartButton:hover {
@@ -1950,6 +2151,15 @@ a {
     border-radius: 1.7rem;
   }
 
+  .mothers-day-slide {
+    grid-template-columns: 1fr;
+  }
+
+  .mothers-day-copy h1 {
+    max-width: 16ch;
+    font-size: 3rem;
+  }
+
   .header-carousel {
     grid-template-columns: 1fr;
   }
@@ -2044,6 +2254,36 @@ a {
     justify-content: center;
     text-align: center;
     padding: 0.85rem 0.9rem;
+  }
+
+  .mothers-day-slide {
+    gap: 0.9rem;
+    margin-bottom: 1.5rem;
+    padding: 0.8rem;
+    border-radius: 1.25rem;
+  }
+
+  .mothers-day-copy {
+    padding: 1rem;
+  }
+
+  .mothers-day-copy h1 {
+    max-width: 12ch;
+    font-size: 2.35rem;
+  }
+
+  .mothers-day-copy p {
+    font-size: 0.94rem;
+    line-height: 1.62;
+  }
+
+  .mothers-day-photos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .mothers-day-photo {
+    border-radius: 1rem;
   }
 
   .header-carousel {

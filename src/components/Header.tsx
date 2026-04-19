@@ -1,5 +1,3 @@
-import HeaderCarousel from '@/components/HeaderCarousel'
-
 export default function Header() {
   return (
     <header className="hero mb-10">
@@ -24,7 +22,6 @@ export default function Header() {
           </a>
         </div>
       </nav>
-
     </header>
   )
 }

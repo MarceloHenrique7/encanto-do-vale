@@ -8,7 +8,7 @@ type CardapioProps = {
 }
 
 export default function Cardapio({ onAddToCart }: CardapioProps) {
-  const [selectedCategoryId, setSelectedCategoryId] = useState('destaques')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('dia-das-maes')
   const [selectedFulfillment, setSelectedFulfillment] = useState<
     'todos' | 'encomenda' | 'entrega-pronta'
   >('encomenda')
@@ -65,13 +65,17 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
   }
 
   function resetFilters() {
-    setSelectedCategoryId('destaques')
+    setSelectedCategoryId('dia-das-maes')
     setSelectedFulfillment('encomenda')
     setSelectedProductId('todos')
     setSelectedPriceOrder('asc')
   }
 
   const categoryProducts = useMemo(() => {
+    if (selectedCategoryId === 'todos') {
+      return products
+    }
+
     if (selectedCategoryId === 'destaques') {
       return products.filter((product) => product.isFeatured)
     }
@@ -116,11 +120,17 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
   const activeCategory = categories.find(
     (category) => category.id === selectedCategoryId,
   )
+  const activeCategoryName =
+    selectedCategoryId === 'todos' ? 'Todos os produtos' : activeCategory?.name
+  const isMothersDayCategory = selectedCategoryId === 'dia-das-maes'
   const confirmingProduct =
     products.find((product) => product.id === confirmingProductId) ?? null
 
   return (
-    <section id="cardapio" className="section menu-section">
+    <section
+      id="cardapio"
+      className={`section menu-section${isMothersDayCategory ? ' menu-section--mothers-day' : ''}`}
+    >
       <div className="menu-shell" id="encomende">
         <div className="menu-header">
           <div className="section-heading menu-heading">
@@ -132,6 +142,17 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
             </p>
           </div>
         </div>
+
+        {isMothersDayCategory ? (
+          <div className="menu-mothers-day-banner" aria-label="Especial Dia das Maes">
+            <span>Especial Dia das Maes</span>
+            <strong>Cestas presenteaveis, chocolates e carinho em cada detalhe.</strong>
+            <p>
+              Escolha uma composicao especial e depois personalize preco,
+              imagem e detalhes do presente.
+            </p>
+          </div>
+        ) : null}
 
         <div className="menu-filters">
           <div className="menu-filters-bar">
@@ -154,6 +175,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
                 setSelectedProductId('todos')
               }}
             >
+              <option value="todos">Todos</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -214,7 +236,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
           <div className="menu-panel-header">
             <div>
               <p className="menu-panel-label">Filtro atual</p>
-              <h3>{activeCategory?.name}</h3>
+              <h3>{activeCategoryName}</h3>
             </div>
             <span className="menu-panel-count">
               {filteredProducts.length} opcoes encontradas
@@ -225,7 +247,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
             <div className="menu-grid">
               {filteredProducts.map((product) => (
                 <article
-                  className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
+                  className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.categoryIds.includes('dia-das-maes') ? ' menu-card--mothers-day' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
                   key={product.id}
                 >
                   <div className="menu-card-imageWrap">
