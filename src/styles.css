@@ -2129,11 +2129,16 @@ a {
 
   .product-confirmation-modal {
     grid-template-columns: 1fr;
-    max-height: 92vh;
+    max-height: calc(100dvh - 2.5rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .product-confirmation-media {
     max-height: 18rem;
+    min-height: 0;
   }
 
   .product-confirmation-image,
@@ -2401,10 +2406,12 @@ a {
 
   .product-confirmation-modal {
     border-radius: 1.4rem;
+    max-height: calc(100dvh - 1.5rem);
   }
 
   .product-confirmation-content {
     padding: 1rem;
+    overflow: visible;
   }
 
   .product-confirmation-header,
