@@ -65,9 +65,24 @@ export const products: Product[] = [
     id: 'cesta-mae-afeto',
     name: 'Cesta Mae Afeto Doce',
     description:
-      'Cesta presenteavel com chocolates artesanais, delicadezas doces e um ursinho para transformar o Dia das Maes em um gesto cheio de carinho.',
-    price: 'A partir de R$ 119,90',
-    basePrice: 119.9,
+      `
+      🎁 Cesta “Você é Especial” – Versão Delicada
+
+        Às vezes, um gesto simples…
+        é o que mais marca. ❤️
+
+        Essa cesta é perfeita pra quem quer surpreender com carinho, sem exagero — mas com muito significado.
+
+        ✨ O que acompanha:
+
+        🧸 Pelúcia fofa e delicada
+        🍫 Mix de chocolates (Prestígio, Baton, Serenata de Amor, Talento e mais)
+        🌹 Arranjo de rosas artificiais (visual elegante e romântico)
+        🎁 Caixa MDF com a frase “Você é Especial”
+        🌾 Acabamento com palha decorativa (estilo rústico e aconchegante)
+      `,
+    price: 'A partir de R$ 129,99',
+    basePrice: 129.9,
     imageSrc: 'https://i.ibb.co/jkBnvKCp/tradu-o-texto-202604191651.jpg',
     fulfillmentType: 'encomenda',
     isAvailable: true,
@@ -80,9 +95,26 @@ export const products: Product[] = [
     id: 'cesta-mae-chocolate',
     name: 'Cesta Mae Chocolates Especiais',
     description:
-      'Composicao pensada para quem ama chocolate, com doces selecionados, acabamento elegante e um ursinho para completar o presente.',
-    price: 'A partir de R$ 149,90',
-    basePrice: 149.9,
+      `
+        Tem presentes…
+          e tem aqueles que fazem a pessoa parar, olhar… e se emocionar. 💛
+
+          Essa cesta foi criada pra isso.
+
+          Cada detalhe aqui não é por acaso — é pra transformar um simples momento em uma lembrança que fica pra sempre.
+
+          ✨ O que acompanha:
+
+          🧸 Pelúcia com coração “Eu te amo”
+          🍫 Seleção premium de chocolates (KitKat, Ouro Branco, BIS, Laka, trufas e mais)
+          🍬 Caixa especial com doces finos
+          📸 6 fotos personalizadas (memórias que contam uma história)
+          💡 Iluminação delicada em LED (efeito encantador)
+          🎁 Caixa MDF com a frase “Te Amo”
+          🌹 Pétalas decorativas para um toque ainda mais especial
+      `,
+    price: 'A partir de R$ 170,99',
+    basePrice: 170.99,
     imageSrc: 'https://i.ibb.co/8L04fDY8/Gemini-Generated-Image-zg1wv2zg1wv2zg1w.png',
     fulfillmentType: 'encomenda',
     isAvailable: true,
@@ -95,9 +127,25 @@ export const products: Product[] = [
     id: 'cesta-mae-encanto',
     name: 'Cesta Mae Encanto do Vale',
     description:
-      'Presente completo com selecao de chocolates, detalhes decorativos e um ursinho especial para uma entrega delicada e memoravel.',
-    price: 'A partir de R$ 159,90',
-    basePrice: 159.9,
+      `Uma surpresa que fala por você… 💛  
+
+Essa cesta foi pensada para transformar um simples presente em um momento inesquecível. Com um toque delicado e cheio de carinho, ela reúne tudo que emociona e encanta logo no primeiro olhar.  
+
+✨ O que acompanha:  
+
+🧸 Pelúcia charmosa com mensagem “Eu te amo”  
+🍫 Seleção de chocolates (Sonho de Valsa, Ouro Branco, etc.)  
+🍰 Doce especial da Encanto do Vale  
+🌹 Pétalas decorativas para um toque romântico  
+🎁 Caixa MDF elegante com a frase “Você é Especial”  
+
+💝 Perfeita para:  
+Surpreender no Dia das Mães, aniversários ou qualquer momento que mereça um gesto cheio de amor.  
+
+💬 Porque mais do que um presente…  
+é uma forma de dizer: “eu pensei em você em cada detalhe.”`,
+    price: 'A partir de R$ 234.9',
+    basePrice: 234.9,
     imageSrc: 'https://i.ibb.co/ZRv9d29Y/Gemini-Generated-Image-t1u2z0t1u2z0t1u2.png',
     fulfillmentType: 'encomenda',
     isAvailable: true,
@@ -110,9 +158,21 @@ export const products: Product[] = [
     id: 'cesta-mae-premium',
     name: 'Cesta Mae Premium com Chocolates',
     description:
-      'Surpreenda quem sempre cuidou de você com um presente cheio de significado. Essa box foi criada para emocionar, combinando doçura, carinho e memórias inesquecíveis em um só presente. ✨Perfeita para transformar o Dia das Mães em um momento único. \n 🧸 Urso de pelúcia super macio e delicado 🍫 2x KitKat 🍫 1x Chocolate Alpino 🍬 3x Ferrero Rocher 🍬 1x Bombom Caribe 🍬 2x Sonho de Valsa 📸 6 fotos reveladas (para eternizar momentos especiais)',
-    price: 'A partir de R$ 189,99,90',
-    basePrice: 189.9,
+      `
+        Mais do que um presente… uma lembrança que fica pra sempre. 💛
+
+        Essa cesta foi criada pra emocionar de verdade. Cada detalhe foi pensado pra transformar um momento simples em algo inesquecível — principalmente pelas fotos que contam uma história única.
+
+        ✨ O que acompanha:
+
+        🧸 Pelúcia delicada e aconchegante
+        🍫 Chocolates selecionados (KitKat, Alpino, Ferrero Rocher, Serenata de Amor e outros)
+        📸 6 fotos personalizadas presas na tampa (estilo varal de memórias)
+        🎁 Caixa MDF premium com a frase “Você é Especial”
+        🌾 Acabamento rústico elegante com palha decorativa
+      `,
+    price: 'A partir de R$ 149,99',
+    basePrice: 149.9,
     imageSrc: 'https://i.ibb.co/qY1hKJTg/crie-um-combo-202604191706-1.jpg',
     fulfillmentType: 'encomenda',
     isAvailable: true,
