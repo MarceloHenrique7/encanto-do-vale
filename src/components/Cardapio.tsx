@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 
-import { categories, products } from '@/data/landing'
+import { categories } from '@/data/landing'
 import type { Product } from '@/types/landing'
 
 type CardapioProps = {
+  products: Product[]
   onAddToCart: (productId: string, optionId: string | undefined, quantity: number) => void
 }
 
-export default function Cardapio({ onAddToCart }: CardapioProps) {
+export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState('dia-das-maes')
   const [selectedFulfillment, setSelectedFulfillment] = useState<
     'todos' | 'encomenda' | 'entrega-pronta'
@@ -83,7 +84,7 @@ export default function Cardapio({ onAddToCart }: CardapioProps) {
     return products.filter((product) =>
       product.categoryIds.includes(selectedCategoryId),
     )
-  }, [selectedCategoryId])
+  }, [products, selectedCategoryId])
 
   const filteredProducts = useMemo(() => {
     const filtered = categoryProducts.filter((product) => {

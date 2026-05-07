@@ -1,7 +1,7 @@
-import { products } from '@/data/landing'
-import type { CartItem } from '@/types/landing'
+import type { CartItem, Product } from '@/types/landing'
 
 type FloatingCartProps = {
+  products: Product[]
   cartItems: CartItem[]
   isOpen: boolean
   onOpen: () => void
@@ -32,6 +32,7 @@ function buildWhatsappLink(phone: string, message: string) {
 }
 
 export default function FloatingCart({
+  products,
   cartItems,
   isOpen,
   onOpen,

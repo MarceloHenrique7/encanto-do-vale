@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import AdminPage from '@/components/AdminPage'
 import CTA from '@/components/CTA'
 import Cardapio from '@/components/Cardapio'
 import FAQ from '@/components/FAQ'
@@ -7,13 +8,19 @@ import FloatingCart from '@/components/FloatingCart'
 import Footer from '@/components/Footer'
 import Header from '@/components/Header'
 import Hero from '@/components/Hero'
-import { products } from '@/data/landing'
 import type { CartItem } from '@/types/landing'
+import { useCatalogProducts } from '@/utils/adminCatalog'
 import HeaderCarousel from './components/HeaderCarousel'
 
 export default function App() {
+  const products = useCatalogProducts()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const isAdminPage = window.location.pathname === '/admin'
+
+  if (isAdminPage) {
+    return <AdminPage />
+  }
 
   function handleAddToCart(
     productId: string,
@@ -73,6 +80,7 @@ export default function App() {
   return (
     <div className="page-shell">
       <FloatingCart
+        products={products}
         cartItems={cartItems}
         isOpen={isCartOpen}
         onOpen={() => setIsCartOpen(true)}
@@ -82,7 +90,7 @@ export default function App() {
       />
       <Header />
       <HeaderCarousel />
-      <Cardapio onAddToCart={handleAddToCart} />
+      <Cardapio products={products} onAddToCart={handleAddToCart} />
     
       <Hero 
       heroImage="https://i.ibb.co/8gmdTx7N/Ovos-de-P-scoa-com-brigadeiro-e-morango.png"
