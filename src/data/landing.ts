@@ -397,20 +397,56 @@ export const products: Product[] = [
       "cestas",
       "dia-das-maes"
     ]
+  },
+  {
+    "id": "1-caixa-mdf-doce-amor",
+    "name": "🌷 Caixa MDF “Doce Amor”",
+    "description": "Uma lembrança delicada e cheia de carinho para surpreender no Dia das Mães. ❤️\n\nNossa caixa MDF “Doce Amor” acompanha chocolates selecionados, mini ursinho com coração, bombons premium e acabamento artesanal em uma apresentação elegante e afetiva.\n\n🎁 Ideal para presentear de forma simples, bonita e inesquecível.\n\n✨ Itens inclusos:\n\nMini ursinho decorativo\nChocolates variados\nBombons premium\nCaixa MDF personalizada\nLaço decorativo artesanal\n\n💌 Produção limitada para o Dia das Mães.",
+    "price": "A partir de R$ 99,99",
+    "basePrice": 99.99,
+    "imageSrc": "https://i.ibb.co/k6WhgnT5/cesta-maes-07-05.jpg",
+    "fulfillmentType": "encomenda",
+    "isAvailable": true,
+    "isFeatured": false,
+    "isPromo": true,
+    "primaryCategoryLabel": "Cestas",
+    "categoryIds": [
+      "cestas",
+      "dia-das-maes"
+    ]
+  },
+  {
+    "id": "2-cesta-amor-em-cada-detalhe",
+    "name": "❤️ Cesta “Amor em Cada Detalhe”",
+    "description": "Uma cesta apaixonante criada para emocionar já no primeiro olhar. 🌹\n\nCom balão decorativo, chocolates, flores artificiais e caneca temática, essa opção combina delicadeza e charme em uma apresentação super especial.\n\n✨ Itens inclusos:\n\nBalão coração metalizado\nMini ursinho\nFerrero Rocher e chocolates variados\nCaneca temática “Mãe Te Amo”\nFlores decorativas\nEmbalagem transparente premium\n\n🎁 Um presente perfeito para transformar o Dia das Mães em um momento inesquecível.",
+    "price": "139,99",
+    "basePrice": 139.99,
+    "imageSrc": "https://i.ibb.co/V0nktMdJ/cesta-maes-07-03.jpg",
+    "fulfillmentType": "encomenda",
+    "isAvailable": true,
+    "isFeatured": false,
+    "isPromo": true,
+    "primaryCategoryLabel": "Cestas",
+    "categoryIds": [
+      "cestas",
+      "dia-das-maes"
+    ]
+  },
+  {
+    "id": "4-box-mae-voce-e-luz",
+    "name": "🎀 Box “Mãe, Você é Luz”",
+    "description": "Elegância, delicadeza e carinho reunidos em uma caixa presenteável super sofisticada. 🌷\n\nA Box “Mãe, Você é Luz” foi criada para mães que merecem um presente memorável e cheio de significado.\n\n💖 Itens inclusos:\n\nCaneca personalizada\nChocolates variados\nMini ursinho decorativo\nFlores delicadas\nCartão temático\nCaixa premium decorada\nEmbalagem transparente com laço acetinado\n\n🎁 Um presente perfeito para emocionar e encantar neste Dia das Mães.",
+    "price": "89,99",
+    "basePrice": 89.99,
+    "imageSrc": "https://i.ibb.co/jnb56xv/cesta-maes-07-1.jpg",
+    "fulfillmentType": "encomenda",
+    "isAvailable": true,
+    "isFeatured": false,
+    "isPromo": true,
+    "primaryCategoryLabel": "Cestas",
+    "categoryIds": [
+      "cestas",
+      "dia-das-maes"
+    ]
   }
-]
-
-export const stats: Stat[] = [
-  {
-    value: '+120%',
-    label: 'mais clareza na comunicacao da proposta',
-  },
-  {
-    value: '3 blocos',
-    label: 'essenciais ja montados para acelerar o inicio',
-  },
-  {
-    value: '100% responsiva',
-    label: 'base preparada para desktop e mobile',
-  },
 ]
