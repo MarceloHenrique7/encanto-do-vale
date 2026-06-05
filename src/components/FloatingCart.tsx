@@ -146,14 +146,18 @@ Podem me confirmar disponibilidade, prazo e forma de entrega?`
         }),
       })
 
-      const checkoutData = await checkoutResponse.json()
+      const checkoutText = await checkoutResponse.text()
+      const checkoutData = checkoutText
+        ? JSON.parse(checkoutText)
+        : {}
 
       if (!checkoutResponse.ok || !checkoutData.checkoutUrl) {
         throw new Error(checkoutData.error ?? 'Erro ao criar checkout.')
       }
 
       window.location.href = checkoutData.checkoutUrl
-    } catch {
+    } catch (error) {
+      console.error('Erro ao abrir checkout Mercado Pago', error)
       setCheckoutStatus('error')
     }
   }

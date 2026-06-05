@@ -11,17 +11,26 @@ function toMoney(value) {
   return Math.round(parsed * 100) / 100
 }
 
+function normalizeHeader(value) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function isLocalUrl(url) {
+  return url.includes('localhost') || url.includes('127.0.0.1')
+}
+
 function getBaseUrl(request) {
   const configuredUrl = process.env.PUBLIC_SITE_URL?.replace(/\/$/, '')
+  const protocol = normalizeHeader(request.headers['x-forwarded-proto']) ?? 'https'
+  const host = normalizeHeader(request.headers['x-forwarded-host']) ??
+    normalizeHeader(request.headers.host)
+  const requestUrl = host ? `${protocol}://${host}` : ''
 
-  if (configuredUrl) {
+  if (configuredUrl && (!isLocalUrl(configuredUrl) || !requestUrl || isLocalUrl(requestUrl))) {
     return configuredUrl
   }
 
-  const protocol = request.headers['x-forwarded-proto'] ?? 'https'
-  const host = request.headers.host
-
-  return `${protocol}://${host}`
+  return requestUrl
 }
 
 function buildOrderReference() {
@@ -91,10 +100,17 @@ export default async function handler(request, response) {
   const platformFeePercent = toMoney(process.env.MARKETPLACE_FEE_PERCENT ?? 0)
   const marketplaceFee = toMoney(productsSubtotal * (platformFeePercent / 100))
   const baseUrl = getBaseUrl(request)
+
+  if (!baseUrl) {
+    return response.status(500).json({
+      error:
+        'Nao foi possivel identificar o dominio publico para criar o checkout.',
+    })
+  }
+
   const externalReference = buildOrderReference()
   const notificationUrl = `${baseUrl}/api/mercado-pago-webhook?source_news=webhooks`
-  const isLocalBaseUrl =
-    baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')
+  const isLocalBaseUrl = isLocalUrl(baseUrl)
 
   const preference = {
     items: checkoutItems,
