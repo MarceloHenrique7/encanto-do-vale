@@ -63,9 +63,9 @@ export const products: Product[] = [
   {
     "id": "cesta-mae-afeto",
     "name": "Cesta Mae Afeto Doce",
-    "description": "\n      🎁 Cesta “Você é Especial” – Versão Delicada\n\n        Às vezes, um gesto simples…\n        é o que mais marca. ❤️\n\n        Essa cesta é perfeita pra quem quer surpreender com carinho, sem exagero — mas com muito significado.\n\n        ✨ O que acompanha:\n\n        🧸 Pelúcia fofa e delicada\n        🍫 Mix de chocolates (Prestígio, Baton, Serenata de Amor, Talento e mais)\n        🌹 Arranjo de rosas artificiais (visual elegante e romântico)\n        🎁 Caixa MDF com a frase “Você é Especial”\n        🌾 Acabamento com palha decorativa (estilo rústico e aconchegante)\n      ",
-    "price": "A partir de R$ 129,99",
-    "basePrice": 129.9,
+    "description": "🎁 Cesta “Você é Especial” – Versão Delicada\n\n        Às vezes, um gesto simples…\n        é o que mais marca. ❤️\n\n        Essa cesta é perfeita pra quem quer surpreender com carinho, sem exagero — mas com muito significado.\n\n        ✨ O que acompanha:\n\n        🧸 Pelúcia fofa e delicada\n        🍫 Mix de chocolates (Prestígio, Baton, Serenata de Amor, Talento e mais)\n        🌹 Arranjo de rosas artificiais (visual elegante e romântico)\n        🎁 Caixa MDF com a frase “Você é Especial”\n        🌾 Acabamento com palha decorativa (estilo rústico e aconchegante)",
+    "price": "A partir de R$ 0,90",
+    "basePrice": 0.9,
     "imageSrc": "https://i.ibb.co/jkBnvKCp/tradu-o-texto-202604191651.jpg",
     "fulfillmentType": "encomenda",
     "isAvailable": true,

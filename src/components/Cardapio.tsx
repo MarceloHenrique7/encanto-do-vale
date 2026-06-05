@@ -8,15 +8,22 @@ type CardapioProps = {
   onAddToCart: (productId: string, optionId: string | undefined, quantity: number) => void
 }
 
+type FulfillmentFilter = 'todos' | 'encomenda' | 'entrega-pronta'
+type PriceOrder = 'default' | 'asc' | 'desc'
+
+const fulfillmentLabels: Record<FulfillmentFilter, string> = {
+  todos: 'Todos',
+  encomenda: 'Encomenda',
+  'entrega-pronta': 'Pronta entrega',
+}
+
 export default function Cardapio({ products, onAddToCart }: CardapioProps) {
-  const [selectedCategoryId, setSelectedCategoryId] = useState('dia-das-maes')
-  const [selectedFulfillment, setSelectedFulfillment] = useState<
-    'todos' | 'encomenda' | 'entrega-pronta'
-  >('encomenda')
-  const [selectedProductId, setSelectedProductId] = useState('todos')
-  const [selectedPriceOrder, setSelectedPriceOrder] = useState<
-    'default' | 'asc' | 'desc'
-  >('asc')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('todos')
+  const [selectedFulfillment, setSelectedFulfillment] =
+    useState<FulfillmentFilter>('todos')
+  const [selectedPriceOrder, setSelectedPriceOrder] =
+    useState<PriceOrder>('default')
+  const [searchTerm, setSearchTerm] = useState('')
   const [selectedOptionIds, setSelectedOptionIds] = useState<Record<string, string>>({})
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
   const [confirmingProductId, setConfirmingProductId] = useState<string | null>(null)
@@ -32,12 +39,21 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     return `A partir de ${formatCurrency(value)}`
   }
 
-  function truncateDescription(text: string, maxLength = 50) {
-    if (text.length <= maxLength) {
-      return text
+  function normalize(text: string) {
+    return text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+  }
+
+  function truncateDescription(text: string, maxLength = 88) {
+    const cleanedText = text.replace(/\s+/g, ' ').trim()
+
+    if (cleanedText.length <= maxLength) {
+      return cleanedText
     }
 
-    return `${text.slice(0, maxLength).trimEnd()}...`
+    return `${cleanedText.slice(0, maxLength).trimEnd()}...`
   }
 
   function getSelectedOption(product: Product) {
@@ -66,36 +82,52 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   }
 
   function resetFilters() {
-    setSelectedCategoryId('dia-das-maes')
-    setSelectedFulfillment('encomenda')
-    setSelectedProductId('todos')
-    setSelectedPriceOrder('asc')
+    setSelectedCategoryId('todos')
+    setSelectedFulfillment('todos')
+    setSelectedPriceOrder('default')
+    setSearchTerm('')
   }
 
-  const categoryProducts = useMemo(() => {
-    if (selectedCategoryId === 'todos') {
-      return products
-    }
+  const availableProductsCount = products.filter((product) => product.isAvailable).length
+  const readyProductsCount = products.filter(
+    (product) => product.fulfillmentType === 'entrega-pronta',
+  ).length
 
-    if (selectedCategoryId === 'destaques') {
-      return products.filter((product) => product.isFeatured)
-    }
+  const categoryCounts = useMemo(() => {
+    return categories.reduce<Record<string, number>>((accumulator, category) => {
+      if (category.id === 'destaques') {
+        accumulator[category.id] = products.filter((product) => product.isFeatured).length
+        return accumulator
+      }
 
-    return products.filter((product) =>
-      product.categoryIds.includes(selectedCategoryId),
-    )
-  }, [products, selectedCategoryId])
+      accumulator[category.id] = products.filter((product) =>
+        product.categoryIds.includes(category.id),
+      ).length
+      return accumulator
+    }, {})
+  }, [products])
 
   const filteredProducts = useMemo(() => {
-    const filtered = categoryProducts.filter((product) => {
+    const normalizedSearch = normalize(searchTerm.trim())
+
+    const filtered = products.filter((product) => {
+      const matchesCategory =
+        selectedCategoryId === 'todos' ||
+        (selectedCategoryId === 'destaques'
+          ? product.isFeatured
+          : product.categoryIds.includes(selectedCategoryId))
+
       const matchesFulfillment =
         selectedFulfillment === 'todos' ||
         product.fulfillmentType === selectedFulfillment
 
-      const matchesProduct =
-        selectedProductId === 'todos' || product.id === selectedProductId
+      const matchesSearch =
+        !normalizedSearch ||
+        normalize(
+          `${product.name} ${product.description} ${product.primaryCategoryLabel}`,
+        ).includes(normalizedSearch)
 
-      return matchesFulfillment && matchesProduct
+      return matchesCategory && matchesFulfillment && matchesSearch
     })
 
     if (selectedPriceOrder === 'asc') {
@@ -111,147 +143,135 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     }
 
     return filtered
-  }, [
-    categoryProducts,
-    selectedFulfillment,
-    selectedPriceOrder,
-    selectedProductId,
-  ])
+  }, [products, searchTerm, selectedCategoryId, selectedFulfillment, selectedPriceOrder])
 
   const activeCategory = categories.find(
     (category) => category.id === selectedCategoryId,
   )
   const activeCategoryName =
-    selectedCategoryId === 'todos' ? 'Todos os produtos' : activeCategory?.name
-  const isMothersDayCategory = selectedCategoryId === 'dia-das-maes'
+    selectedCategoryId === 'todos' ? 'Cardapio completo' : activeCategory?.name
   const confirmingProduct =
     products.find((product) => product.id === confirmingProductId) ?? null
 
   return (
-    <section
-      id="cardapio"
-      className={`section menu-section${isMothersDayCategory ? ' menu-section--mothers-day' : ''}`}
-    >
-      <div className="menu-shell" id="encomende">
-        <div className="menu-header">
-          <div className="section-heading menu-heading">
-            <p className="section-label">Cardapio</p>
-            <h2>Encontre oque vai te fazer feliz hoje.</h2>
-            <p className="menu-description">
-              Selecione a categoria, refine por atendimento e escolha um
-              produto especifico se quiser ir direto ao ponto.
-            </p>
+    <main id="cardapio" className="menu-app">
+      <section className="menu-hero">
+        <div className="menu-hero-copy">
+          <span className="menu-store-pill">Delivery artesanal</span>
+          <h1>Encanto do Vale</h1>
+          <p>
+            Escolha seus doces, cestas e bolos pelo cardapio. Toque em um item
+            para ver detalhes e adicionar ao carrinho.
+          </p>
+        </div>
+
+        <div className="menu-hero-stats" aria-label="Resumo do cardapio">
+          <div>
+            <strong>{products.length}</strong>
+            <span>itens</span>
+          </div>
+          <div>
+            <strong>{categories.length}</strong>
+            <span>categorias</span>
+          </div>
+          <div>
+            <strong>{availableProductsCount}</strong>
+            <span>disponiveis</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="menu-workspace" id="encomende">
+        <div className="menu-toolbar">
+          <label className="menu-search">
+            <span>Buscar no cardapio</span>
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por bolo, cesta, chocolate..."
+              type="search"
+            />
+          </label>
+
+          <div className="menu-selects">
+            <label className="menu-filterField">
+              <span>Atendimento</span>
+              <select
+                value={selectedFulfillment}
+                onChange={(event) =>
+                  setSelectedFulfillment(event.target.value as FulfillmentFilter)
+                }
+              >
+                <option value="todos">Todos</option>
+                <option value="encomenda">Encomenda</option>
+                <option value="entrega-pronta">Pronta entrega</option>
+              </select>
+            </label>
+
+            <label className="menu-filterField">
+              <span>Preco</span>
+              <select
+                value={selectedPriceOrder}
+                onChange={(event) =>
+                  setSelectedPriceOrder(event.target.value as PriceOrder)
+                }
+              >
+                <option value="default">Padrao</option>
+                <option value="asc">Menor preco</option>
+                <option value="desc">Maior preco</option>
+              </select>
+            </label>
           </div>
         </div>
 
-        {isMothersDayCategory ? (
-          <div className="menu-mothers-day-banner" aria-label="Especial Dia das Maes">
-            <span>Especial Dia das Maes</span>
-            <strong>Cestas presenteaveis, chocolates e carinho em cada detalhe.</strong>
-            <p>
-              Escolha uma composicao especial e depois personalize preco,
-              imagem e detalhes do presente.
-            </p>
-          </div>
-        ) : null}
+        <div className="menu-categoryRail" aria-label="Categorias do cardapio">
+          <button
+            type="button"
+            className={`menu-categoryChip${selectedCategoryId === 'todos' ? ' is-active' : ''}`}
+            onClick={() => setSelectedCategoryId('todos')}
+          >
+            <span>Todos</span>
+            <small>{products.length}</small>
+          </button>
 
-        <div className="menu-filters">
-          <div className="menu-filters-bar">
-            <span className="menu-filters-kicker">Refinar vitrine</span>
+          {categories.map((category) => (
             <button
               type="button"
-              className="menu-filters-reset"
-              onClick={resetFilters}
+              className={`menu-categoryChip${selectedCategoryId === category.id ? ' is-active' : ''}`}
+              key={category.id}
+              onClick={() => setSelectedCategoryId(category.id)}
             >
-              Limpar
+              <span>{category.name}</span>
+              <small>{categoryCounts[category.id] ?? 0}</small>
             </button>
-          </div>
-
-          <label className="menu-filterField">
-            <span>Categoria</span>
-            <select
-              value={selectedCategoryId}
-              onChange={(event) => {
-                setSelectedCategoryId(event.target.value)
-                setSelectedProductId('todos')
-              }}
-            >
-              <option value="todos">Todos</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="menu-filterField">
-            <span>Atendimento</span>
-            <select
-              value={selectedFulfillment}
-              onChange={(event) =>
-                setSelectedFulfillment(
-                  event.target.value as 'todos' | 'encomenda' | 'entrega-pronta',
-                )
-              }
-            >
-              <option value="todos">Todos</option>
-              <option value="encomenda">So encomenda</option>
-              <option value="entrega-pronta">So entrega pronta</option>
-            </select>
-          </label>
-
-          <label className="menu-filterField">
-            <span>Produto</span>
-            <select
-              value={selectedProductId}
-              onChange={(event) => setSelectedProductId(event.target.value)}
-            >
-              <option value="todos">Todos os produtos</option>
-              {categoryProducts.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="menu-filterField">
-            <span>Preco</span>
-            <select
-              value={selectedPriceOrder}
-              onChange={(event) =>
-                setSelectedPriceOrder(
-                  event.target.value as 'default' | 'asc' | 'desc',
-                )
-              }
-            >
-              <option value="default">Sem ordenacao</option>
-              <option value="asc">Do menor para o maior</option>
-              <option value="desc">Do maior para o menor</option>
-            </select>
-          </label>
+          ))}
         </div>
 
-        <div className="menu-panel">
-          <div className="menu-panel-header">
-            <div>
-              <p className="menu-panel-label">Filtro atual</p>
-              <h3>{activeCategoryName}</h3>
-            </div>
-            <span className="menu-panel-count">
-              {filteredProducts.length} opcoes encontradas
-            </span>
+        <div className="menu-resultsHeader">
+          <div>
+            <span className="menu-panel-label">Mostrando agora</span>
+            <h2>{activeCategoryName}</h2>
           </div>
+          <div className="menu-resultsMeta">
+            <span>{filteredProducts.length} itens</span>
+            <span>{fulfillmentLabels[selectedFulfillment]}</span>
+            <span>{readyProductsCount} pronta entrega</span>
+          </div>
+        </div>
 
-          {filteredProducts.length ? (
-            <div className="menu-grid">
-              {filteredProducts.map((product) => (
-                <article
-                  className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.categoryIds.includes('dia-das-maes') ? ' menu-card--mothers-day' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
-                  key={product.id}
+        {filteredProducts.length ? (
+          <div className="menu-grid">
+            {filteredProducts.map((product) => (
+              <article
+                className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
+                key={product.id}
+              >
+                <button
+                  type="button"
+                  className="menu-card-open"
+                  onClick={() => setConfirmingProductId(product.id)}
                 >
-                  <div className="menu-card-imageWrap">
+                  <span className="menu-card-imageWrap">
                     {product.imageSrc ? (
                       <img
                         src={product.imageSrc}
@@ -259,62 +279,60 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                         className="menu-card-image"
                       />
                     ) : (
-                      <div className="menu-card-placeholder">
-                        imagem do produto
-                      </div>
+                      <span className="menu-card-placeholder">sem foto</span>
                     )}
 
-                    {product.isAvailable ? (
-                      product.isPromo ? (
-                        <span className="menu-card-badge">Promocional</span>
-                      ) : null
-                    ) : (
-                      <span className="menu-card-badge menu-card-badge--unavailable">
-                        Indisponivel
-                      </span>
-                    )}
-                  </div>
+                    {product.isPromo ? (
+                      <span className="menu-card-badge">Promo</span>
+                    ) : null}
+                  </span>
 
-                  <div className="menu-card-content">
-                    <div className="menu-card-topline">
+                  <span className="menu-card-content">
+                    <span className="menu-card-topline">
                       <span className="menu-card-category">
                         {product.primaryCategoryLabel}
                       </span>
-                    </div>
-
-                    <strong className="menu-card-price">
-                      {formatStartingPrice(product.basePrice)}
-                    </strong>
-                    <h4>{product.name}</h4>
-                    <p>{truncateDescription(product.description)}</p>
-
-                    <div className="menu-card-actions">
-                      <button
-                        type="button"
-                        className={`menu-card-cartButton${product.isAvailable ? '' : ' is-disabled'}`}
-                        onClick={() => setConfirmingProductId(product.id)}
-                        disabled={!product.isAvailable}
+                      <span
+                        className={`menu-card-status menu-card-status--${product.fulfillmentType}`}
                       >
-                        {product.isAvailable
-                          ? 'Adicionar ao carrinho'
-                          : 'Item indisponivel'}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="menu-emptyState">
-              <strong>Nenhum produto encontrado.</strong>
-              <p>
-                Ajuste os filtros para ver outras combinacoes de categoria,
-                disponibilidade e produto.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+                        {product.fulfillmentType === 'encomenda'
+                          ? 'Encomenda'
+                          : 'Pronta'}
+                      </span>
+                    </span>
+
+                    <strong className="menu-card-title">{product.name}</strong>
+                    <span className="menu-card-description">
+                      {truncateDescription(product.description)}
+                    </span>
+                    <span className="menu-card-footer">
+                      <strong className="menu-card-price">
+                        {formatStartingPrice(product.basePrice)}
+                      </strong>
+                      <span
+                        className={`menu-card-quickAction${product.isAvailable ? '' : ' is-disabled'}`}
+                      >
+                        {product.isAvailable ? '+' : 'Indisponivel'}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="menu-emptyState">
+            <strong>Nenhum produto encontrado.</strong>
+            <p>
+              Tente limpar a busca ou escolher outra categoria para ver mais
+              opcoes do cardapio.
+            </p>
+            <button type="button" onClick={resetFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        )}
+      </section>
 
       {confirmingProduct ? (
         <div className="product-confirmation-overlay">
@@ -373,19 +391,19 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                 >
                   {confirmingProduct.fulfillmentType === 'encomenda'
                     ? 'Encomenda'
-                    : 'Entrega pronta'}
+                    : 'Pronta entrega'}
                 </span>
                 <span className="menu-card-fulfillmentText">
                   {confirmingProduct.fulfillmentType === 'encomenda'
                     ? 'feito sob pedido com prazo combinado'
-                    : 'preparo agil para entrega no momento do pedido'}
+                    : 'produto pensado para entrega mais agil'}
                 </span>
               </div>
 
               {confirmingProduct.options?.length ? (
                 <div className="menu-card-optionGroup">
                   <label className="menu-card-field">
-                    <span>Tamanho</span>
+                    <span>Opcao</span>
                     <select
                       value={getSelectedOption(confirmingProduct)?.id ?? ''}
                       onChange={(event) =>
@@ -397,7 +415,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                     >
                       {confirmingProduct.options.map((option) => (
                         <option key={option.id} value={option.id}>
-                          {option.label} • {formatCurrency(option.price)}
+                          {option.label} - {formatCurrency(option.price)}
                         </option>
                       ))}
                     </select>
@@ -462,7 +480,9 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                     }}
                     disabled={!confirmingProduct.isAvailable}
                   >
-                    Confirmar e adicionar
+                    {confirmingProduct.isAvailable
+                      ? 'Adicionar ao carrinho'
+                      : 'Item indisponivel'}
                   </button>
                 </div>
               </div>
@@ -470,6 +490,6 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
           </div>
         </div>
       ) : null}
-    </section>
+    </main>
   )
 }

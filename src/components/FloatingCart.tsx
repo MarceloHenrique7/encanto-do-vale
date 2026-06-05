@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import type { CartItem, Product } from '@/types/landing'
 
 type FloatingCartProps = {
@@ -31,6 +33,12 @@ function buildWhatsappLink(phone: string, message: string) {
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
 }
 
+function parseDeliveryFee(value: string | undefined) {
+  const parsed = Number(value?.replace(',', '.') ?? 10)
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10
+}
+
 export default function FloatingCart({
   products,
   cartItems,
@@ -40,6 +48,18 @@ export default function FloatingCart({
   onUpdateQuantity,
   whatsappPhone,
 }: FloatingCartProps) {
+  const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'delivery'>(
+    'pickup',
+  )
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [checkoutStatus, setCheckoutStatus] = useState<
+    'idle' | 'loading' | 'error'
+  >('idle')
+
+  const deliveryFee = parseDeliveryFee(import.meta.env.VITE_DELIVERY_FEE)
+
   const cartProducts = cartItems
     .map((item) => {
       const product = products.find((entry) => entry.id === item.productId)
@@ -67,6 +87,8 @@ export default function FloatingCart({
 
   const cartCount = cartProducts.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartProducts.reduce((sum, item) => sum + item.subtotal, 0)
+  const checkoutTotal =
+    cartTotal + (deliveryMethod === 'delivery' ? deliveryFee : 0)
 
   const lines = cartProducts.map(
     (item) =>
@@ -89,6 +111,52 @@ Podem me confirmar disponibilidade, prazo e forma de entrega?`
     : ''
 
   const whatsappCheckoutLink = buildWhatsappLink(whatsappPhone, whatsappMessage)
+
+  async function handleOnlineCheckout() {
+    if (!cartProducts.length || checkoutStatus === 'loading') {
+      return
+    }
+
+    setCheckoutStatus('loading')
+
+    try {
+      const checkoutResponse = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deliveryMethod,
+          deliveryFee: deliveryMethod === 'delivery' ? deliveryFee : 0,
+          customer: {
+            name: customerName,
+            phone: customerPhone,
+            email: customerEmail,
+          },
+          items: cartProducts.map((item) => ({
+            id: `${item.id}${item.optionId ? `-${item.optionId}` : ''}`,
+            title: item.optionLabel
+              ? `${item.name} - ${item.optionLabel}`
+              : item.name,
+            description: item.description,
+            pictureUrl: item.imageSrc,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          })),
+        }),
+      })
+
+      const checkoutData = await checkoutResponse.json()
+
+      if (!checkoutResponse.ok || !checkoutData.checkoutUrl) {
+        throw new Error(checkoutData.error ?? 'Erro ao criar checkout.')
+      }
+
+      window.location.href = checkoutData.checkoutUrl
+    } catch {
+      setCheckoutStatus('error')
+    }
+  }
 
   return (
     <>
@@ -184,10 +252,77 @@ Podem me confirmar disponibilidade, prazo e forma de entrega?`
           </div>
 
           <div className="cart-footer">
+            <div className="cart-checkoutBox">
+              <div className="cart-deliveryChoice" aria-label="Entrega ou retirada">
+                <button
+                  type="button"
+                  className={deliveryMethod === 'pickup' ? 'is-active' : ''}
+                  onClick={() => setDeliveryMethod('pickup')}
+                >
+                  Retirar
+                </button>
+                <button
+                  type="button"
+                  className={deliveryMethod === 'delivery' ? 'is-active' : ''}
+                  onClick={() => setDeliveryMethod('delivery')}
+                >
+                  Entrega + {formatCurrency(deliveryFee)}
+                </button>
+              </div>
+
+              <div className="cart-customerGrid">
+                <label>
+                  <span>Nome</span>
+                  <input
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    placeholder="Seu nome"
+                  />
+                </label>
+                <label>
+                  <span>Telefone</span>
+                  <input
+                    value={customerPhone}
+                    onChange={(event) => setCustomerPhone(event.target.value)}
+                    inputMode="tel"
+                    placeholder="WhatsApp"
+                  />
+                </label>
+                <label>
+                  <span>E-mail</span>
+                  <input
+                    value={customerEmail}
+                    onChange={(event) => setCustomerEmail(event.target.value)}
+                    inputMode="email"
+                    placeholder="opcional"
+                    type="email"
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="cart-total">
               <span>Total estimado</span>
-              <strong>{formatCurrency(cartTotal)}</strong>
+              <strong>{formatCurrency(checkoutTotal)}</strong>
             </div>
+
+            <button
+              type="button"
+              className={`cart-onlineButton${cartProducts.length ? '' : ' is-disabled'}`}
+              disabled={!cartProducts.length || checkoutStatus === 'loading'}
+              onClick={handleOnlineCheckout}
+            >
+              {checkoutStatus === 'loading'
+                ? 'Gerando pagamento...'
+                : 'Pagar online Pix/cartao'}
+            </button>
+
+            {checkoutStatus === 'error' ? (
+              <p className="cart-checkoutError">
+                Nao foi possivel abrir o checkout agora. Confira as credenciais
+                do Mercado Pago ou use o WhatsApp.
+              </p>
+            ) : null}
 
             <a
               className={`cart-whatsappButton${cartProducts.length ? '' : ' is-disabled'}`}

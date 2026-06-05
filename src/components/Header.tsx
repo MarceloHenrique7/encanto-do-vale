@@ -1,6 +1,6 @@
 export default function Header() {
   return (
-    <header className="hero mb-10">
+    <header className="site-header">
       <nav className="topbar">
         <a className="brand" href="#cardapio">
           Encanto do Vale
@@ -9,10 +9,6 @@ export default function Header() {
         <div className="nav-links" aria-label="Navegacao principal">
           <a className="nav-link" href="#cardapio">
             Cardapio
-          </a>
-
-          <a className="nav-link" href="#encomende">
-            Encomende
           </a>
           <a className="nav-link nav-link--highlight" href="#peca-agora">
             Peca agora
