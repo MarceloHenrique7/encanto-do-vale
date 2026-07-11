@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: encanto-do-vale
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build && npm run db:migrate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PIX_PENDING_EXPIRATION_MINUTES
+        value: "60"
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: MERCADO_PAGO_PUBLIC_KEY
+        sync: false
+      - key: MERCADO_PAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADO_PAGO_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        sync: false

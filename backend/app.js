@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import cors from 'cors'
 import express from 'express'
 
@@ -41,6 +45,10 @@ import {
   getDeliveryZones,
   postCalculateDelivery,
 } from './controllers/delivery.js'
+
+const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
+const staticDirectory = path.resolve(serviceDirectory, '../dist')
+const indexFile = path.join(staticDirectory, 'index.html')
 
 export function createApp() {
   const app = express()
@@ -101,6 +109,13 @@ export function createApp() {
   app.post('/api/admin/categories', requireAdmin, postAdminCategory)
   app.put('/api/admin/categories/:id', requireAdmin, putAdminCategory)
   app.delete('/api/admin/categories/:id', requireAdmin, removeAdminCategory)
+
+  if (existsSync(indexFile)) {
+    app.use(express.static(staticDirectory, { index: false }))
+    app.get(/^(?!\/api\/).*/, (_request, response) => {
+      response.sendFile(indexFile)
+    })
+  }
 
   app.use((error, _request, response, _next) => {
     if (error?.type === 'entity.parse.failed') {
