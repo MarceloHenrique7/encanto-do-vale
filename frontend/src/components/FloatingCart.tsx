@@ -10,6 +10,7 @@ import {
 import { storeConfig } from '@/config/store'
 import { fromCents, toCents, type ResolvedCartItem } from '@/domain/cart'
 import { formatCurrency } from '@/lib/formatters'
+import { getStoreHoursStatus } from '@/lib/storeHours'
 
 type FloatingCartProps = {
   resolvedItems: ResolvedCartItem[]
@@ -121,6 +122,7 @@ export default function FloatingCart({
   >('loading-zones')
   const [unsupportedNeighborhood, setUnsupportedNeighborhood] = useState(false)
   const [deliveryError, setDeliveryError] = useState('')
+  const storeHours = getStoreHoursStatus()
 
   useEffect(() => {
     if (!customerAccount) return
@@ -267,6 +269,7 @@ export default function FloatingCart({
   const activeSession =
     session?.fingerprint === fingerprint ? session : null
   const canFinalize =
+    storeHours.isOpen &&
     Boolean(resolvedItems.length) &&
     deliveryReady &&
     checkoutState !== 'creating' &&
@@ -297,6 +300,9 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
   }
 
   function validateCheckout(requireEmail: boolean) {
+    if (!storeHours.isOpen) {
+      throw new Error(`A loja esta fechada agora. ${storeHours.detail}.`)
+    }
     if (!resolvedItems.length) throw new Error('Adicione produtos ao carrinho.')
     if (!customer.name.trim()) throw new Error('Informe seu nome.')
     if (customer.phone.replace(/\D/g, '').length < 10) {
@@ -719,6 +725,12 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
               </div>
 
               <div className="cart-orderSummary">
+                {!storeHours.isOpen ? (
+                  <div className="cart-closedNotice">
+                    <strong>Loja fechada agora</strong>
+                    <span>{storeHours.detail}</span>
+                  </div>
+                ) : null}
                 <div>
                   <span>Subtotal</span>
                   <span>{formatCurrency(subtotal)}</span>

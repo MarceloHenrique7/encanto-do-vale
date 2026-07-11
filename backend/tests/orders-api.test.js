@@ -10,7 +10,7 @@ import {
   isUsingTestCredentials,
   mapPaymentStatus,
 } from '../services/mercado-pago.js'
-import { resetOrdersForTests } from '../services/order-store.js'
+import { createOrder, resetOrdersForTests } from '../services/order-store.js'
 import { updateOrder } from '../services/order-store.js'
 import { resetUsersForTests } from '../services/user-store.js'
 
@@ -145,6 +145,56 @@ test('mapeia status do Mercado Pago para o pedido interno', () => {
   assert.equal(mapPaymentStatus('in_process'), 'waiting_payment')
   assert.equal(mapPaymentStatus('rejected'), 'failed')
   assert.equal(mapPaymentStatus('refunded'), 'failed')
+})
+
+test('permite avançar um pedido com pagamento na entrega', async () => {
+  const app = createApp()
+  const manager = request.agent(app)
+  const login = await manager
+    .post('/api/admin/login')
+    .send({ password: 'senha-forte-de-teste' })
+  assert.equal(login.status, 200)
+
+  const order = {
+    id: 'order-delivery-payment',
+    user_id: 'guest-user',
+    status: 'pending',
+    restaurant_status: 'new',
+    payment_status: null,
+    payment_method: 'card-delivery',
+    customer: {
+      name: 'Joana',
+      phone: '75999999999',
+      address: 'Rua Teste',
+      number: '31',
+      neighborhood: 'Centro',
+    },
+    items: [
+      {
+        id: 'bolo-de-pote-kitkat-supreme',
+        name: 'Bolo de Pote Kitkat Supreme',
+        quantity: 1,
+        unit_price: 14.99,
+      },
+    ],
+    delivery_method: 'delivery',
+    delivery_fee: 0,
+    deliveryType: 'delivery',
+    deliveryFee: 0,
+    neighborhood: 'Centro',
+    distanceKm: 0,
+    subtotal: 14.99,
+    total: 14.99,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  await createOrder(order)
+
+  const update = await manager
+    .patch(`/api/admin/orders/${order.id}/status`)
+    .send({ status: 'preparing' })
+  assert.equal(update.status, 200)
+  assert.equal(update.body.order.restaurant_status, 'preparing')
 })
 
 test('protege o gestor e permite avançar um pedido pago', async () => {

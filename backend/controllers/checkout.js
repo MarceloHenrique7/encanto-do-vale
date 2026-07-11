@@ -11,6 +11,7 @@ import {
   mapPaymentStatus,
 } from '../services/mercado-pago.js'
 import { validateMercadoPagoWebhookSignature } from '../services/mercado-pago-webhook.js'
+import { getStoreHoursStatus } from '../services/store-hours.js'
 import {
   createOrder,
   findOrder,
@@ -67,6 +68,13 @@ function cleanCustomer(body) {
 }
 
 export async function postOrder(request, response) {
+  const storeHours = getStoreHoursStatus()
+  if (!storeHours.isOpen) {
+    return response.status(409).json({
+      error: `A loja esta fechada agora. ${storeHours.detail}.`,
+    })
+  }
+
   const body = request.body ?? {}
   const customer = cleanCustomer(body)
   const sessionUser = request.customerUser ?? null

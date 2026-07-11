@@ -223,12 +223,17 @@ export default function ManagerPage() {
       const nextOrders: ManagerOrder[] = data.orders ?? []
       const currentNewIds = new Set(
         nextOrders
-          .filter(
-            (order) =>
-              order.status === 'paid' &&
-              (order.restaurant_status ??
-                (order.status === 'paid' ? 'new' : 'awaiting_payment')) === 'new',
-          )
+          .filter((order) => {
+            const isDeliveryPaymentOrder =
+              order.payment_method === 'cash-delivery' ||
+              order.payment_method === 'card-delivery'
+            const restaurantStatus =
+              order.restaurant_status ??
+              (order.status === 'paid' || isDeliveryPaymentOrder
+                ? 'new'
+                : 'awaiting_payment')
+            return restaurantStatus === 'new'
+          })
           .map((order) => order.id),
       )
 
@@ -379,11 +384,15 @@ export default function ManagerPage() {
       ? activeStatuses.includes(status)
       : status === filter
   })
-  const newCount = orders.filter(
-    (order) =>
-      (order.restaurant_status ??
-        (order.status === 'paid' ? 'new' : 'awaiting_payment')) === 'new',
-  ).length
+  const newCount = orders.filter((order) => {
+    const isDeliveryPaymentOrder =
+      order.payment_method === 'cash-delivery' ||
+      order.payment_method === 'card-delivery'
+    const restaurantStatus =
+      order.restaurant_status ??
+      (order.status === 'paid' || isDeliveryPaymentOrder ? 'new' : 'awaiting_payment')
+    return restaurantStatus === 'new'
+  }).length
 
   useEffect(() => {
     if (

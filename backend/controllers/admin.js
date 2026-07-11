@@ -109,7 +109,13 @@ export async function patchAdminOrderStatus(request, response) {
   if (!order) {
     return response.status(404).json({ error: 'Pedido não encontrado.' })
   }
-  if (order.status !== 'paid' && restaurantStatus !== 'cancelled') {
+
+  const requiresPaymentBeforeProduction =
+    order.payment_method !== 'cash-delivery' &&
+    order.payment_method !== 'card-delivery' &&
+    order.status !== 'paid'
+
+  if (requiresPaymentBeforeProduction && restaurantStatus !== 'cancelled') {
     return response.status(409).json({
       error: 'O pedido precisa estar pago antes de avançar na produção.',
     })

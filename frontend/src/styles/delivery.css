@@ -3098,6 +3098,26 @@ body .site-header .header-profile {
   font-size: 14px;
 }
 
+.cart-closedNotice {
+  display: grid !important;
+  gap: 4px !important;
+  padding: 11px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412 !important;
+}
+
+.cart-closedNotice strong,
+.cart-closedNotice span {
+  color: inherit !important;
+}
+
+.cart-closedNotice span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .cart-whatsappButton {
   border: 0;
   font: inherit;
