@@ -54,6 +54,27 @@ export function createApp() {
   const app = express()
   const frontendUrl = String(process.env.FRONTEND_URL ?? 'http://localhost:5173')
     .replace(/\/$/, '')
+  const allowedOrigins = new Set(
+    [
+      frontendUrl,
+      process.env.BACKEND_URL,
+      process.env.RENDER_EXTERNAL_URL,
+      'https://encanto-do-vale.onrender.com',
+    ]
+      .filter(Boolean)
+      .map((origin) => String(origin).replace(/\/$/, '')),
+  )
+
+  function isAllowedOrigin(origin) {
+    if (!origin) return true
+    const normalizedOrigin = origin.replace(/\/$/, '')
+    if (allowedOrigins.has(normalizedOrigin)) return true
+    try {
+      return new URL(normalizedOrigin).hostname.endsWith('.onrender.com')
+    } catch {
+      return false
+    }
+  }
 
   app.disable('x-powered-by')
   if (existsSync(indexFile)) {
@@ -62,7 +83,7 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || origin.replace(/\/$/, '') === frontendUrl) {
+        if (isAllowedOrigin(origin)) {
           callback(null, true)
           return
         }
