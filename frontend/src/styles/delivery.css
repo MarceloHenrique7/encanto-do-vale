@@ -3920,3 +3920,23 @@ body .site-header .header-profile {
     flex-direction: column;
   }
 }
+
+.brand-mark,
+.store-hero__logo,
+.footer-brand {
+  overflow: hidden;
+  background: #fff;
+}
+
+.brand-mark img,
+.store-hero__logo img,
+.footer-brand img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.store-hero__facts .is-closed {
+  color: #b42318;
+}

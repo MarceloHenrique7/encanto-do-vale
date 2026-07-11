@@ -5,7 +5,9 @@ export default function Footer() {
     <footer className="footer" id="contatos">
       <div className="footer-main">
         <div>
-          <span className="footer-brand">EV</span>
+          <span className="footer-brand">
+            <img src={storeConfig.logoUrl} alt="" />
+          </span>
           <strong>{storeConfig.name}</strong>
           <p>{storeConfig.serviceSummary}</p>
         </div>

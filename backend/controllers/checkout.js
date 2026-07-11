@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import {
   getMercadoPagoError,
-  normalizeOrder,
+  normalizeOrderFromStore,
   sanitizeText,
 } from '../api/_payment-utils.js'
 import {
@@ -94,7 +94,7 @@ export async function postOrder(request, response) {
 
   // O catálogo do backend é a fonte dos preços. subtotal/total do navegador
   // são deliberadamente ignorados durante este recálculo.
-  const normalized = normalizeOrder(
+  const normalized = await normalizeOrderFromStore(
     {
       ...body,
       deliveryMethod,

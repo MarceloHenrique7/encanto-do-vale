@@ -2,6 +2,7 @@ import { FiMapPin, FiShoppingBag, FiUser } from 'react-icons/fi'
 
 import { storeConfig } from '@/config/store'
 import { formatCurrency } from '@/lib/formatters'
+import { getStoreHoursStatus } from '@/lib/storeHours'
 
 type HeaderProps = {
   cartCount: number
@@ -19,12 +20,15 @@ export default function Header({
   onOpenProfile,
 }: HeaderProps) {
   const firstName = customerName?.split(' ')[0]
+  const hoursStatus = getStoreHoursStatus()
 
   return (
     <header className="site-header">
       <nav className="topbar">
         <a className="brand" href="#cardapio" aria-label={`${storeConfig.name} - inicio`}>
-          <span className="brand-mark">EV</span>
+          <span className="brand-mark">
+            <img src={storeConfig.logoUrl} alt="" />
+          </span>
           <span>
             {storeConfig.name}
             <small>
@@ -35,7 +39,7 @@ export default function Header({
 
         <div className="store-status">
           <span aria-hidden="true" />
-          Aceitando pedidos
+          {hoursStatus.label}
         </div>
 
         <div className="header-customerActions">
@@ -66,7 +70,7 @@ export default function Header({
         </div>
       </nav>
       <div className="mobile-store-status">
-        <span aria-hidden="true" /> Aceitando pedidos - Delivery
+        <span aria-hidden="true" /> {hoursStatus.label} - Delivery
       </div>
     </header>
   )

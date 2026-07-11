@@ -1,4 +1,4 @@
-import { getCatalogSnapshot } from '../services/catalog-store.js'
+import { getCatalog, getCatalogSnapshot } from '../services/catalog-store.js'
 import { validateDeliveryZone } from '../utils/deliveryFee.js'
 
 export const MERCADO_PAGO_PAYMENTS_URL =
@@ -140,8 +140,7 @@ export function getMercadoPagoError(data, fallback) {
   return [...new Set([fallback, message, cause].filter(Boolean))].join(' — ')
 }
 
-export function normalizeOrder(body, { requireEmail = true } = {}) {
-  const catalog = getCatalogSnapshot()
+function normalizeOrderWithCatalog(catalog, body, { requireEmail = true } = {}) {
   const {
     items = [],
     customer = {},
@@ -293,4 +292,12 @@ export function normalizeOrder(body, { requireEmail = true } = {}) {
     total,
     description: `Pedido Encanto do Vale - ${checkoutItems.length} item(ns)`,
   }
+}
+
+export function normalizeOrder(body, { requireEmail = true } = {}) {
+  return normalizeOrderWithCatalog(getCatalogSnapshot(), body, { requireEmail })
+}
+
+export async function normalizeOrderFromStore(body, { requireEmail = true } = {}) {
+  return normalizeOrderWithCatalog(await getCatalog(), body, { requireEmail })
 }

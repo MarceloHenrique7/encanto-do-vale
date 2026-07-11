@@ -3,8 +3,11 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { query, shouldUsePostgres } from './postgres.js'
+
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const defaultFile = path.resolve(serviceDirectory, '../catalog.json')
+const catalogKey = 'main'
 let writeQueue = Promise.resolve()
 
 function catalogFile() {
@@ -34,6 +37,18 @@ export function getCatalogSnapshot() {
 }
 
 async function readCatalog() {
+  if (shouldUsePostgres()) {
+    const result = await query(
+      'select data from catalog_state where key = $1',
+      [catalogKey],
+    )
+    if (result.rows[0]?.data) return normalizeDatabase(result.rows[0].data)
+
+    const seededCatalog = getCatalogSnapshot()
+    await writeCatalog(seededCatalog)
+    return seededCatalog
+  }
+
   try {
     return normalizeDatabase(JSON.parse(await readFile(catalogFile(), 'utf8')))
   } catch (error) {
@@ -43,6 +58,19 @@ async function readCatalog() {
 }
 
 async function writeCatalog(catalog) {
+  if (shouldUsePostgres()) {
+    await query(
+      `
+        insert into catalog_state (key, data, updated_at)
+        values ($1, $2::jsonb, now())
+        on conflict (key)
+        do update set data = excluded.data, updated_at = now()
+      `,
+      [catalogKey, JSON.stringify(normalizeDatabase(catalog))],
+    )
+    return
+  }
+
   const file = catalogFile()
   const temporaryFile = `${file}.${process.pid}.tmp`
   await mkdir(path.dirname(file), { recursive: true })

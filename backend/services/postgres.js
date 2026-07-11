@@ -52,6 +52,12 @@ export async function migratePostgres() {
     create index if not exists orders_created_at_idx on orders (created_at desc);
     create index if not exists orders_user_id_idx on orders (user_id);
     create index if not exists orders_status_idx on orders (status);
+
+    create table if not exists catalog_state (
+      key text primary key,
+      data jsonb not null,
+      updated_at timestamptz not null default now()
+    );
   `)
 
   await migrationPromise
