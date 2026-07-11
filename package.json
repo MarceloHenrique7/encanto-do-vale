@@ -4,24 +4,41 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "concurrently -k -n API,WEB -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "node --watch backend/server.js",
+    "dev:frontend": "vite --config frontend/vite.config.ts",
+    "dev:test": "vite --config frontend/vite.config.ts --mode test",
+    "start": "node backend/server.js",
+    "db:migrate": "node backend/scripts/migrate-postgres.js",
+    "catalog:sync": "node scripts/catalog.mjs",
+    "catalog:check": "node scripts/catalog.mjs --check",
+    "test": "node --test backend/tests/*.test.js",
+    "typecheck": "tsc -p frontend/tsconfig.json --noEmit",
+    "check": "npm run catalog:check && npm run test && npm run typecheck && npm run build",
+    "build": "vite build --config frontend/vite.config.ts",
+    "preview": "vite preview --config frontend/vite.config.ts"
   },
   "dependencies": {
+    "@mercadopago/sdk-react": "^1.0.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mercadopago": "^3.2.0",
+    "pg": "^8.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-icons": "^5.6.0",
-    "react-router": "^7.14.0"
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.3",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
+    "supertest": "^7.2.2",
     "typescript": "^5.6.3",
-    "vite": "^5.4.8"
+    "vite": "^7.3.6"
   }
 }
