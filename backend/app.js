@@ -56,6 +56,9 @@ export function createApp() {
     .replace(/\/$/, '')
 
   app.disable('x-powered-by')
+  if (existsSync(indexFile)) {
+    app.use(express.static(staticDirectory, { index: false }))
+  }
   app.use(
     cors({
       origin(origin, callback) {
