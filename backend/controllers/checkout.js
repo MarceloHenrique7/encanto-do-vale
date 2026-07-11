@@ -166,7 +166,28 @@ export async function postOrder(request, response) {
   })
 }
 
-function paymentBodyFrom(order, formData) {
+function normalizePublicUrl(value) {
+  const rawValue = String(value ?? '').trim().replace(/\/$/, '')
+  if (!rawValue) return ''
+
+  try {
+    const url = new URL(rawValue)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return ''
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+}
+
+function publicBackendUrl(request) {
+  return (
+    normalizePublicUrl(process.env.BACKEND_URL) ||
+    normalizePublicUrl(process.env.RENDER_EXTERNAL_URL) ||
+    normalizePublicUrl(`${request.protocol}://${request.get('host')}`)
+  )
+}
+
+function paymentBodyFrom(order, formData, request) {
   const paymentMethodId = sanitizeText(formData.payment_method_id, 80)
   const payer = formData.payer ?? {}
   const email = sanitizeText(payer.email, 120)
@@ -193,7 +214,7 @@ function paymentBodyFrom(order, formData) {
     throw error
   }
 
-  const backendUrl = String(process.env.BACKEND_URL ?? '').replace(/\/$/, '')
+  const backendUrl = publicBackendUrl(request)
 
   return {
     transaction_amount: order.total,
@@ -253,7 +274,7 @@ export async function postProcessPayment(request, response) {
 
   let paymentBody
   try {
-    paymentBody = paymentBodyFrom(order, formData)
+    paymentBody = paymentBodyFrom(order, formData, request)
   } catch (error) {
     return response.status(400).json({ error: error.message })
   }

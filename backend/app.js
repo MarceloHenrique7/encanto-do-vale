@@ -77,6 +77,7 @@ export function createApp() {
   }
 
   app.disable('x-powered-by')
+  app.set('trust proxy', 1)
   if (existsSync(indexFile)) {
     app.use(express.static(staticDirectory, { index: false }))
   }
