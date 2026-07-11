@@ -18,6 +18,7 @@ import {
   findUserByPhone,
   updateUser,
   upsertPendingUser,
+  upsertVerifiedUser,
 } from '../services/user-store.js'
 
 const sendAttempts = new Map()
@@ -170,6 +171,27 @@ export async function postPhoneLogin(request, response) {
     return response.status(404).json({ error: 'Celular nao cadastrado.' })
   }
 
+  createCustomerSession(response, user.id)
+  return response.json({ authenticated: true, user: publicUser(user) })
+}
+
+export async function postGuestAccess(request, response) {
+  if (!sessionIsConfigured()) {
+    return response.status(503).json({
+      error: 'A autenticacao ainda nao foi configurada no servidor.',
+    })
+  }
+
+  const name = sanitizeText(request.body?.name, 80)
+  const phone = normalizeBrazilianPhone(request.body?.phone)
+  if (name.length < 2) {
+    return response.status(400).json({ error: 'Informe seu nome.' })
+  }
+  if (!phone) {
+    return response.status(400).json({ error: 'Informe um WhatsApp valido com DDD.' })
+  }
+
+  const user = await upsertVerifiedUser({ name, phone })
   createCustomerSession(response, user.id)
   return response.json({ authenticated: true, user: publicUser(user) })
 }

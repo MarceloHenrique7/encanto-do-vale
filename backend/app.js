@@ -24,6 +24,7 @@ import { requireAdmin } from './services/admin-auth.js'
 import {
   getCustomerSession,
   patchCustomerProfile,
+  postGuestAccess,
   postCustomerLogout,
   postPasswordLogin,
   postPhoneLogin,
@@ -107,6 +108,7 @@ export function createApp() {
   app.post('/api/auth/verify-code', postVerifyCode)
   app.post('/api/auth/login/password', postPasswordLogin)
   app.post('/api/auth/login/phone', postPhoneLogin)
+  app.post('/api/auth/guest', postGuestAccess)
   app.post('/api/auth/logout', postCustomerLogout)
   app.patch('/api/auth/profile', requireCustomer, patchCustomerProfile)
   app.post(

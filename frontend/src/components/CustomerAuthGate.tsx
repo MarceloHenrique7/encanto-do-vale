@@ -79,10 +79,33 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
     setError('')
   }
 
-  function saveGuest(event: FormEvent) {
+  async function saveGuest(event: FormEvent) {
     event.preventDefault()
-    saveGuestCustomer({ name, phone })
-    closePrompt()
+    setSubmitting(true)
+    setError('')
+    try {
+      const response = await fetch('/api/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Nao foi possivel cadastrar agora.')
+      }
+      saveGuestCustomer({ name, phone })
+      localStorage.setItem(guestPromptKey, 'true')
+      setUser(data.user)
+      setPromptOpen(false)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Nao foi possivel cadastrar agora.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function loginWithPhone(event: FormEvent) {
@@ -154,8 +177,11 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
                   placeholder="(75) 99999-9999"
                 />
               </label>
-              <button type="submit">Continuar</button>
+              <button type="submit" disabled={submitting}>
+                {submitting ? 'Entrando...' : 'Continuar'}
+              </button>
             </form>
+            {error ? <p className="customer-authError">{error}</p> : null}
             <button type="button" className="customer-authTextButton" onClick={closePrompt}>
               Ver cardapio
             </button>
