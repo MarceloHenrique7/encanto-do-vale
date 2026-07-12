@@ -15,6 +15,7 @@ type RestaurantStatus =
 type ManagerOrder = {
   id: string
   status: string
+  payment_method?: 'online' | 'cash-delivery' | 'card-delivery'
   restaurant_status?: RestaurantStatus
   customer: {
     name: string

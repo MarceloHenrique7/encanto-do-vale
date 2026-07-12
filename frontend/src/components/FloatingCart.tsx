@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 
-import PaymentBrick from '@/components/PaymentBrick'
 import {
   formatPhone,
   loadGuestCustomer,
@@ -11,6 +10,8 @@ import { storeConfig } from '@/config/store'
 import { fromCents, toCents, type ResolvedCartItem } from '@/domain/cart'
 import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
+
+const PaymentBrick = lazy(() => import('@/components/PaymentBrick'))
 
 type FloatingCartProps = {
   resolvedItems: ResolvedCartItem[]
@@ -767,13 +768,15 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
               ) : null}
 
               {paymentMethod === 'online' && activeSession && !paymentResult ? (
-                <PaymentBrick
-                  amount={activeSession.total}
-                  orderId={activeSession.orderId}
-                  customer={{ email: customer.email }}
-                  onResult={handlePaymentResult}
-                  onError={handlePaymentError}
-                />
+                <Suspense fallback={<p>Carregando pagamento seguro…</p>}>
+                  <PaymentBrick
+                    amount={activeSession.total}
+                    orderId={activeSession.orderId}
+                    customer={{ email: customer.email }}
+                    onResult={handlePaymentResult}
+                    onError={handlePaymentError}
+                  />
+                </Suspense>
               ) : null}
 
               {transactionData ? (

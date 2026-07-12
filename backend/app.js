@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import cors from 'cors'
+import compression from 'compression'
 import express from 'express'
 
 import {
@@ -79,8 +80,18 @@ export function createApp() {
 
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
+  app.use(compression())
   if (existsSync(indexFile)) {
-    app.use(express.static(staticDirectory, { index: false }))
+    app.use(express.static(staticDirectory, {
+      index: false,
+      maxAge: '1y',
+      immutable: true,
+      setHeaders(response, filePath) {
+        if (filePath === indexFile) {
+          response.setHeader('Cache-Control', 'no-cache')
+        }
+      },
+    }))
   }
   app.use(
     cors({
@@ -138,8 +149,8 @@ export function createApp() {
   app.delete('/api/admin/categories/:id', requireAdmin, removeAdminCategory)
 
   if (existsSync(indexFile)) {
-    app.use(express.static(staticDirectory, { index: false }))
     app.get(/^(?!\/api\/).*/, (_request, response) => {
+      response.setHeader('Cache-Control', 'no-cache')
       response.sendFile(indexFile)
     })
   }
