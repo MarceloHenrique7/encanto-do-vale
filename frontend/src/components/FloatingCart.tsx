@@ -93,6 +93,146 @@ function getTrackingUrl(orderId: string) {
   return `${window.location.origin}/pedido/${orderId}`
 }
 
+function renderWhatsappRedirectPage(targetWindow: Window) {
+  const document = targetWindow.document
+  document.documentElement.lang = 'pt-BR'
+  document.title = `Abrindo WhatsApp | ${storeConfig.name}`
+  document.body.replaceChildren()
+
+  const style = document.createElement('style')
+  style.textContent = `
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top right, rgba(196, 154, 82, .2), transparent 34%),
+        #f8f5ef;
+      color: #2d1b12;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(100%, 430px);
+      padding: 34px;
+      border: 1px solid #e8e0d5;
+      border-radius: 24px;
+      background: #fffdfa;
+      box-shadow: 0 24px 70px rgba(58, 36, 24, .14);
+      text-align: center;
+    }
+    .brand {
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: linear-gradient(145deg, #2d1b12, #513321);
+      color: #ead8b7;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      box-shadow: 0 12px 26px rgba(58, 36, 24, .2);
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: #f2e9dc;
+      color: #68472f;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .status::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #a9792f;
+      content: "";
+    }
+    h1 {
+      margin: 18px 0 9px;
+      font-size: clamp(28px, 8vw, 38px);
+      letter-spacing: -.045em;
+      line-height: 1.05;
+    }
+    p {
+      margin: 0 auto;
+      max-width: 330px;
+      color: #776b61;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .loader {
+      height: 42px;
+      margin: 22px auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+    .loader span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #513321;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .loader span:nth-child(2) { animation-delay: .15s; }
+    .loader span:nth-child(3) { animation-delay: .3s; }
+    small {
+      color: #998d83;
+      font-size: 11px;
+    }
+    @keyframes pulse {
+      0%, 60%, 100% { opacity: .28; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-5px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .loader span { animation: none; opacity: .65; }
+    }
+  `
+
+  const main = document.createElement('main')
+  const brand = document.createElement('div')
+  brand.className = 'brand'
+  brand.textContent = 'EV'
+
+  const status = document.createElement('span')
+  status.className = 'status'
+  status.textContent = 'Pedido registrado'
+
+  const title = document.createElement('h1')
+  title.textContent = 'Tudo certo!'
+
+  const description = document.createElement('p')
+  description.textContent =
+    'Estamos abrindo o WhatsApp para você confirmar os detalhes do pedido com a nossa loja.'
+
+  const loader = document.createElement('div')
+  loader.className = 'loader'
+  loader.setAttribute('aria-label', 'Redirecionando para o WhatsApp')
+  loader.append(
+    document.createElement('span'),
+    document.createElement('span'),
+    document.createElement('span'),
+  )
+
+  const helper = document.createElement('small')
+  helper.textContent = 'Você será redirecionado automaticamente em instantes.'
+
+  main.append(brand, status, title, description, loader, helper)
+  document.head.append(style)
+  document.body.append(main)
+}
+
 export default function FloatingCart({
   resolvedItems,
   isOpen,
@@ -140,9 +280,7 @@ export default function FloatingCart({
 
     const whatsappWindow = window.open('', '_blank')
     if (whatsappWindow) {
-      whatsappWindow.document.title = 'Abrindo WhatsApp...'
-      whatsappWindow.document.body.textContent =
-        'Aguarde enquanto preparamos a confirmação do seu pedido no WhatsApp...'
+      renderWhatsappRedirectPage(whatsappWindow)
       whatsappWindow.opener = null
     }
     whatsappWindowRef.current = whatsappWindow
@@ -426,7 +564,9 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
       total: data.total,
       fingerprint,
     })
-    setMessage('Pedido registrado. Abrindo o WhatsApp para confirmação.')
+    setMessage(
+      'Pedido registrado com sucesso! Estamos abrindo o WhatsApp para você confirmar os detalhes.',
+    )
     const whatsappLink = buildWhatsappLink(
       whatsappPhone,
       getWhatsappMessage(data.total, data.order_id),
@@ -620,6 +760,12 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
 
             <div className="cart-footer">
               <div className="cart-checkoutBox">
+                <div className="cart-checkoutIntro">
+                  <span>Checkout seguro</span>
+                  <strong>Complete seu pedido</strong>
+                  <small>Preencha os dados abaixo para receber em casa.</small>
+                </div>
+
                 <div className="cart-deliveryChoice cart-deliveryChoice--single">
                   <button type="button" className="is-active">
                     {deliveryState === 'calculating'
@@ -632,23 +778,42 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                   </button>
                 </div>
 
-                <div className="cart-paymentChoice">
-                  {(Object.keys(paymentLabels) as PaymentMethod[]).map((method) => (
-                    <button
-                      type="button"
-                      className={paymentMethod === method ? 'is-active' : ''}
-                      key={method}
-                      onClick={() => setPaymentMethod(method)}
-                    >
-                      {paymentLabels[method]}
-                    </button>
-                  ))}
-                </div>
+                <section className="cart-formSection">
+                  <div className="cart-formSectionHeading">
+                    <span>1</span>
+                    <div>
+                      <strong>Forma de pagamento</strong>
+                      <small>Escolha como prefere pagar</small>
+                    </div>
+                  </div>
+                  <div className="cart-paymentChoice">
+                    {(Object.keys(paymentLabels) as PaymentMethod[]).map((method) => (
+                      <button
+                        type="button"
+                        className={paymentMethod === method ? 'is-active' : ''}
+                        aria-pressed={paymentMethod === method}
+                        key={method}
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        {paymentLabels[method]}
+                      </button>
+                    ))}
+                  </div>
+                </section>
 
-                <div className="cart-customerGrid">
+                <section className="cart-formSection">
+                  <div className="cart-formSectionHeading">
+                    <span>2</span>
+                    <div>
+                      <strong>Contato e entrega</strong>
+                      <small>Seus dados para receber o pedido</small>
+                    </div>
+                  </div>
+                  <div className="cart-customerGrid">
                   <label>
                     <span>Nome *</span>
                     <input
+                      placeholder="Seu nome"
                       value={customer.name}
                       onChange={(event) =>
                         updateCustomer('name', event.target.value)
@@ -659,6 +824,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                   <label>
                     <span>WhatsApp *</span>
                     <input
+                      placeholder="(87) 99999-9999"
                       value={customer.phone}
                       onChange={(event) =>
                         updateCustomer('phone', formatPhone(event.target.value))
@@ -672,6 +838,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                       <span>E-mail *</span>
                       <input
                         type="email"
+                        placeholder="voce@exemplo.com"
                         value={customer.email}
                         onChange={(event) =>
                           updateCustomer('email', event.target.value)
@@ -684,6 +851,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                       <label className="cart-fieldWide">
                         <span>Endereço *</span>
                         <input
+                          placeholder="Rua, avenida ou condomínio"
                           value={customer.address}
                           onChange={(event) =>
                             updateCustomer('address', event.target.value)
@@ -693,6 +861,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                       <label>
                         <span>Número *</span>
                         <input
+                          placeholder="Nº"
                           value={customer.number}
                           onChange={(event) =>
                             updateCustomer('number', event.target.value)
@@ -767,6 +936,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                       <label className="cart-fieldWide">
                         <span>Complemento</span>
                         <input
+                          placeholder="Apartamento, bloco ou referência"
                           value={customer.complement}
                           onChange={(event) =>
                             updateCustomer('complement', event.target.value)
@@ -779,6 +949,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     <span>Observações</span>
                     <textarea
                       rows={3}
+                      placeholder="Alguma orientação para o preparo ou entrega?"
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
                     />
@@ -787,7 +958,8 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     Ao finalizar, usamos seus dados apenas para processar e
                     acompanhar o pedido. <a href="/privacidade">Ver privacidade</a>
                   </p>
-                </div>
+                  </div>
+                </section>
               </div>
 
               <div className="cart-orderSummary">
