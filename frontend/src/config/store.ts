@@ -2,7 +2,7 @@ export const storeConfig = {
   name: 'Encanto do Vale',
   logoUrl: 'https://i.ibb.co/Xf8btGBN/IMG-2444.png',
   tagline: 'Cardapio digital artesanal',
-  whatsappPhone: '5587988028002',
+  whatsappPhone: '5587996601698',
   instagramUrl: 'https://instagram.com/doceria.encantodovale',
   email: 'encantodovale986@gmail.com',
   city: 'Petrolina - PE',

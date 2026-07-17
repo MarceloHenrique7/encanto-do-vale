@@ -203,9 +203,10 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
           <button
             type="button"
             className={`menu-categoryChip${selectedCategoryId === 'todos' ? ' is-active' : ''}`}
+            aria-pressed={selectedCategoryId === 'todos'}
             onClick={() => setSelectedCategoryId('todos')}
           >
-            <span>Todos</span>
+            <span className="menu-categoryName">Todos</span>
             <small>{products.length}</small>
           </button>
 
@@ -213,10 +214,11 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
             <button
               type="button"
               className={`menu-categoryChip${selectedCategoryId === category.id ? ' is-active' : ''}`}
+              aria-pressed={selectedCategoryId === category.id}
               key={category.id}
               onClick={() => setSelectedCategoryId(category.id)}
             >
-              <span>{category.name}</span>
+              <span className="menu-categoryName">{category.name}</span>
               <small>{categoryCounts[category.id] ?? 0}</small>
             </button>
           ))}

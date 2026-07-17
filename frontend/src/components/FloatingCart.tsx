@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import {
   formatPhone,
@@ -123,7 +131,28 @@ export default function FloatingCart({
   >('loading-zones')
   const [unsupportedNeighborhood, setUnsupportedNeighborhood] = useState(false)
   const [deliveryError, setDeliveryError] = useState('')
+  const whatsappWindowRef = useRef<Window | null>(null)
   const storeHours = getStoreHoursStatus()
+
+  const prepareWhatsappWindow = useCallback(() => {
+    const currentWindow = whatsappWindowRef.current
+    if (currentWindow && !currentWindow.closed) return
+
+    const whatsappWindow = window.open('', '_blank')
+    if (whatsappWindow) {
+      whatsappWindow.document.title = 'Abrindo WhatsApp...'
+      whatsappWindow.document.body.textContent =
+        'Aguarde enquanto preparamos a confirmação do seu pedido no WhatsApp...'
+      whatsappWindow.opener = null
+    }
+    whatsappWindowRef.current = whatsappWindow
+  }, [])
+
+  const closePreparedWhatsappWindow = useCallback(() => {
+    const whatsappWindow = whatsappWindowRef.current
+    if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close()
+    whatsappWindowRef.current = null
+  }, [])
 
   useEffect(() => {
     if (!customerAccount) return
@@ -374,8 +403,22 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
   }
 
   async function createOfflineOrder() {
+    try {
+      validateCheckout(false)
+    } catch (error) {
+      setCheckoutState('error')
+      setMessage(
+        error instanceof Error ? error.message : 'Não foi possível criar o pedido.',
+      )
+      return
+    }
+
+    prepareWhatsappWindow()
     const data = await submitOrder(false)
-    if (!data) return
+    if (!data) {
+      closePreparedWhatsappWindow()
+      return
+    }
 
     setCheckoutState('success')
     setSession({
@@ -384,22 +427,26 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
       fingerprint,
     })
     setMessage('Pedido registrado. Abrindo o WhatsApp para confirmação.')
-    window.open(
-      buildWhatsappLink(
-        whatsappPhone,
-        getWhatsappMessage(data.total, data.order_id),
-      ),
-      '_blank',
-      'noopener,noreferrer',
+    const whatsappLink = buildWhatsappLink(
+      whatsappPhone,
+      getWhatsappMessage(data.total, data.order_id),
     )
+    const whatsappWindow = whatsappWindowRef.current
+    if (whatsappWindow && !whatsappWindow.closed) {
+      whatsappWindow.location.replace(whatsappLink)
+      whatsappWindowRef.current = null
+    } else {
+      window.location.assign(whatsappLink)
+    }
   }
 
-  const handlePaymentResult = useCallback((result: PaymentResult) => {
+  function handlePaymentResult(result: PaymentResult) {
     if (
       result.status === 'rejected' ||
       result.status === 'cancelled' ||
       result.status === 'refunded'
     ) {
+      closePreparedWhatsappWindow()
       setPaymentResult(null)
       setCheckoutState('error')
       setMessage(
@@ -409,10 +456,27 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
     }
 
     setPaymentResult(result)
+    const whatsappLink = buildWhatsappLink(
+      whatsappPhone,
+      getWhatsappMessage(activeSession?.total ?? estimatedTotal, result.order_id),
+    )
+    const whatsappWindow = whatsappWindowRef.current
+    const openedWhatsappSeparately = Boolean(
+      whatsappWindow && !whatsappWindow.closed,
+    )
+    if (openedWhatsappSeparately && whatsappWindow) {
+      whatsappWindow.location.replace(whatsappLink)
+      whatsappWindowRef.current = null
+    } else {
+      window.location.assign(whatsappLink)
+    }
+
     if (result.status === 'approved') {
       setCheckoutState('success')
       setMessage('Pagamento aprovado! Seu pedido já foi confirmado.')
-      window.location.assign(`/pedido/${result.order_id}`)
+      if (openedWhatsappSeparately) {
+        window.location.assign(`/pedido/${result.order_id}`)
+      }
       return
     }
 
@@ -422,7 +486,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
         ? 'Pix criado. Faça o pagamento e acompanhe a confirmação abaixo.'
         : 'Pagamento em processamento. Acompanhe o status do pedido.',
     )
-  }, [])
+  }
 
   useEffect(() => {
     if (!paymentResult?.order_id || paymentResult.status === 'approved') return
@@ -444,9 +508,10 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
   }, [paymentResult])
 
   const handlePaymentError = useCallback((errorMessage: string) => {
+    closePreparedWhatsappWindow()
     setCheckoutState('error')
     setMessage(errorMessage)
-  }, [])
+  }, [closePreparedWhatsappWindow])
 
   const transactionData =
     paymentResult?.point_of_interaction?.transaction_data
@@ -775,6 +840,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     customer={{ email: customer.email }}
                     onResult={handlePaymentResult}
                     onError={handlePaymentError}
+                    onPaymentStart={prepareWhatsappWindow}
                   />
                 </Suspense>
               ) : null}
@@ -852,6 +918,30 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     rel="noreferrer"
                   >
                     Avisar loja no WhatsApp
+                  </a>
+                </div>
+              ) : null}
+
+              {paymentMethod !== 'online' &&
+              checkoutState === 'success' &&
+              activeSession ? (
+                <div className="cart-postOrderActions">
+                  <a
+                    className="cart-onlineButton"
+                    href={`/pedido/${activeSession.orderId}`}
+                  >
+                    Ver status e detalhes do pedido
+                  </a>
+                  <a
+                    className="cart-whatsappButton cart-whatsappButton--secondary"
+                    href={buildWhatsappLink(
+                      whatsappPhone,
+                      getWhatsappMessage(activeSession.total, activeSession.orderId),
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir WhatsApp novamente
                   </a>
                 </div>
               ) : null}
