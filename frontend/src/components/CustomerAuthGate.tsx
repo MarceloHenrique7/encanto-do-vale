@@ -113,15 +113,18 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
     setSubmitting(true)
     setError('')
     try {
+      const draft = loadGuestCustomer()
       const response = await fetch('/api/auth/login/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: loginPhone }),
+        body: JSON.stringify({ phone: loginPhone, name: draft.name }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(data.error ?? 'Nao foi possivel entrar com este telefone.')
       }
+      saveGuestCustomer({ name: data.user.name, phone: loginPhone })
+      localStorage.setItem(guestPromptKey, 'true')
       setUser(data.user)
       setLoginOpen(false)
     } catch (requestError) {
@@ -205,7 +208,10 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
           >
             <span className="customer-authEyebrow">Entrar</span>
             <h2 id="login-title">Use seu telefone</h2>
-            <p>Clientes ja cadastrados entram apenas com o WhatsApp.</p>
+            <p>
+              Informe seu WhatsApp. Se for seu primeiro acesso, seu cadastro
+              será criado automaticamente.
+            </p>
             <form onSubmit={loginWithPhone}>
               <label>
                 WhatsApp

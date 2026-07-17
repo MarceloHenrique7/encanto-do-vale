@@ -166,13 +166,24 @@ export async function postPasswordLogin(request, response) {
 
 export async function postPhoneLogin(request, response) {
   const phone = normalizeBrazilianPhone(request.body?.phone)
-  const user = phone ? await findUserByPhone(phone) : null
+  if (!phone) {
+    return response.status(400).json({ error: 'Informe um WhatsApp valido com DDD.' })
+  }
+
+  let user = await findUserByPhone(phone)
   if (!user?.verified) {
-    return response.status(404).json({ error: 'Celular nao cadastrado.' })
+    const informedName = sanitizeText(request.body?.name, 80)
+    user = await upsertVerifiedUser({
+      name: user?.name || informedName || 'Cliente',
+      phone,
+    })
   }
 
   createCustomerSession(response, user.id)
-  return response.json({ authenticated: true, user: publicUser(user) })
+  return response.json({
+    authenticated: true,
+    user: publicUser(user),
+  })
 }
 
 export async function postGuestAccess(request, response) {

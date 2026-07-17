@@ -398,6 +398,24 @@ test('cadastra visitante pelo primeiro acesso sem codigo sms', async () => {
   assert.equal(session.body.user.phone, '+5587988028002')
 })
 
+test('cadastra e autentica automaticamente ao entrar com telefone novo', async () => {
+  const app = createApp()
+  const customer = request.agent(app)
+
+  const login = await customer.post('/api/auth/login/phone').send({
+    phone: '(87) 98802-8111',
+  })
+  assert.equal(login.status, 200)
+  assert.equal(login.body.authenticated, true)
+  assert.equal(login.body.user.name, 'Cliente')
+  assert.equal(login.body.user.phone, '+5587988028111')
+
+  const session = await customer.get('/api/auth/session')
+  assert.equal(session.status, 200)
+  assert.equal(session.body.authenticated, true)
+  assert.equal(session.body.user.phone, '+5587988028111')
+})
+
 test('identifica credenciais de teste para enviar X-Test-Token', () => {
   const previousToken = process.env.MERCADO_PAGO_ACCESS_TOKEN
   process.env.MERCADO_PAGO_ACCESS_TOKEN = 'TEST-token-valido'
