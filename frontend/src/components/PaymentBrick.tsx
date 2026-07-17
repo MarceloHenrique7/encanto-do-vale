@@ -26,7 +26,6 @@ type PaymentBrickProps = {
   }
   onResult: (result: PaymentResult) => void
   onError: (message: string) => void
-  onPaymentStart: () => void
 }
 
 type PaymentSubmitData = Parameters<
@@ -47,7 +46,6 @@ export default function PaymentBrick({
   customer,
   onResult,
   onError,
-  onPaymentStart,
 }: PaymentBrickProps) {
   const [isReady, setIsReady] = useState(false)
   const publicKey = __MERCADO_PAGO_PUBLIC_KEY__?.trim()
@@ -83,7 +81,6 @@ export default function PaymentBrick({
 
   const handleSubmit = useCallback(
     async (brickData: PaymentSubmitData) => {
-      onPaymentStart()
       const paymentResponse = await fetch('/api/process-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +102,7 @@ export default function PaymentBrick({
       onResult(data)
       return data
     },
-    [onError, onPaymentStart, onResult, orderId],
+    [onError, onResult, orderId],
   )
 
   const handleBrickError = useCallback(

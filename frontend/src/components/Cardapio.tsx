@@ -170,18 +170,12 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
       ).length
       return accumulator
     }, {})
-  }, [products])
+  }, [categories, products])
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = normalizeSearchText(searchTerm.trim())
 
     const filtered = products.filter((product) => {
-      const matchesCategory =
-        selectedCategoryId === 'todos' ||
-        (selectedCategoryId === 'destaques'
-          ? product.isFeatured
-          : product.categoryIds.includes(selectedCategoryId))
-
       const matchesFulfillment =
         selectedFulfillment === 'todos' ||
         product.fulfillmentType === selectedFulfillment
@@ -192,7 +186,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
           `${product.name} ${product.description} ${product.primaryCategoryLabel}`,
         ).includes(normalizedSearch)
 
-      return matchesCategory && matchesFulfillment && matchesSearch
+      return matchesFulfillment && matchesSearch
     })
 
     if (selectedPriceOrder === 'asc') {
@@ -208,7 +202,64 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     }
 
     return filtered
-  }, [products, searchTerm, selectedCategoryId, selectedFulfillment, selectedPriceOrder])
+  }, [products, searchTerm, selectedFulfillment, selectedPriceOrder])
+
+  const visibleProducts = useMemo(() => {
+    if (selectedCategoryId === 'todos') return filteredProducts
+    if (selectedCategoryId === 'destaques') {
+      return filteredProducts.filter((product) => product.isFeatured)
+    }
+    return filteredProducts.filter((product) =>
+      product.categoryIds.includes(selectedCategoryId),
+    )
+  }, [filteredProducts, selectedCategoryId])
+
+  const productSections = useMemo(() => {
+    if (selectedCategoryId !== 'todos') {
+      const selectedCategory = categories.find(
+        (category) => category.id === selectedCategoryId,
+      )
+      return visibleProducts.length
+        ? [{
+            id: selectedCategoryId,
+            name: selectedCategory?.name ?? 'Produtos',
+            description: selectedCategory?.shortLabel ?? '',
+            products: visibleProducts,
+          }]
+        : []
+    }
+
+    const assignedProductIds = new Set<string>()
+    const sections = categories.flatMap((category) => {
+      if (category.id === 'destaques') return []
+      const categoryProducts = filteredProducts.filter(
+        (product) =>
+          !assignedProductIds.has(product.id) &&
+          product.categoryIds.includes(category.id),
+      )
+      categoryProducts.forEach((product) => assignedProductIds.add(product.id))
+      if (!categoryProducts.length) return []
+      return [{
+        id: category.id,
+        name: category.name,
+        description: category.shortLabel,
+        products: categoryProducts,
+      }]
+    })
+
+    const uncategorizedProducts = filteredProducts.filter(
+      (product) => !assignedProductIds.has(product.id),
+    )
+    if (uncategorizedProducts.length) {
+      sections.push({
+        id: 'outros-produtos',
+        name: 'Outros produtos',
+        description: 'Mais sabores disponiveis',
+        products: uncategorizedProducts,
+      })
+    }
+    return sections
+  }, [categories, filteredProducts, selectedCategoryId, visibleProducts])
 
   const activeCategory = categories.find(
     (category) => category.id === selectedCategoryId,
@@ -303,15 +354,33 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
             <h2>{activeCategoryName}</h2>
           </div>
           <div className="menu-resultsMeta">
-            <span>{filteredProducts.length} itens</span>
+            <span>{visibleProducts.length} itens</span>
             <span>{fulfillmentLabels[selectedFulfillment]}</span>
             <span>{readyProductsCount} pronta entrega</span>
           </div>
         </div>
 
-        {filteredProducts.length ? (
-          <div className="menu-grid">
-            {filteredProducts.map((product) => (
+        {visibleProducts.length ? (
+          <div className="menu-categorySections">
+            {productSections.map((section) => (
+              <section
+                className="menu-categorySection"
+                id={`categoria-${section.id}`}
+                key={section.id}
+              >
+                <header className="menu-categorySectionHeader">
+                  <div>
+                    <span>Categoria</span>
+                    <h3>{section.name}</h3>
+                    {section.description ? <p>{section.description}</p> : null}
+                  </div>
+                  <small>
+                    {section.products.length}{' '}
+                    {section.products.length === 1 ? 'item' : 'itens'}
+                  </small>
+                </header>
+                <div className="menu-grid">
+            {section.products.map((product) => (
               <article
                 className={`menu-card${product.isPromo ? ' menu-card--promo' : ''}${product.isAvailable ? '' : ' menu-card--unavailable'}`}
                 key={product.id}
@@ -386,6 +455,9 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                   </span>
                 </button>
               </article>
+            ))}
+                </div>
+              </section>
             ))}
           </div>
         ) : (

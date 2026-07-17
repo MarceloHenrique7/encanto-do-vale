@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 
@@ -14,7 +13,6 @@ import {
   saveGuestCustomer,
   type CustomerUser,
 } from '@/components/CustomerAuthGate'
-import { storeConfig } from '@/config/store'
 import { fromCents, toCents, type ResolvedCartItem } from '@/domain/cart'
 import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
@@ -93,146 +91,6 @@ function getTrackingUrl(orderId: string) {
   return `${window.location.origin}/pedido/${orderId}`
 }
 
-function renderWhatsappRedirectPage(targetWindow: Window) {
-  const document = targetWindow.document
-  document.documentElement.lang = 'pt-BR'
-  document.title = `Abrindo WhatsApp | ${storeConfig.name}`
-  document.body.replaceChildren()
-
-  const style = document.createElement('style')
-  style.textContent = `
-    * { box-sizing: border-box; }
-    body {
-      min-height: 100vh;
-      margin: 0;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background:
-        radial-gradient(circle at top right, rgba(196, 154, 82, .2), transparent 34%),
-        #f8f5ef;
-      color: #2d1b12;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main {
-      width: min(100%, 430px);
-      padding: 34px;
-      border: 1px solid #e8e0d5;
-      border-radius: 24px;
-      background: #fffdfa;
-      box-shadow: 0 24px 70px rgba(58, 36, 24, .14);
-      text-align: center;
-    }
-    .brand {
-      width: 58px;
-      height: 58px;
-      margin: 0 auto 20px;
-      display: grid;
-      place-items: center;
-      border-radius: 18px;
-      background: linear-gradient(145deg, #2d1b12, #513321);
-      color: #ead8b7;
-      font-size: 16px;
-      font-weight: 900;
-      letter-spacing: .08em;
-      box-shadow: 0 12px 26px rgba(58, 36, 24, .2);
-    }
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 11px;
-      border-radius: 999px;
-      background: #f2e9dc;
-      color: #68472f;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-    }
-    .status::before {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #a9792f;
-      content: "";
-    }
-    h1 {
-      margin: 18px 0 9px;
-      font-size: clamp(28px, 8vw, 38px);
-      letter-spacing: -.045em;
-      line-height: 1.05;
-    }
-    p {
-      margin: 0 auto;
-      max-width: 330px;
-      color: #776b61;
-      font-size: 15px;
-      line-height: 1.6;
-    }
-    .loader {
-      height: 42px;
-      margin: 22px auto 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-    }
-    .loader span {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #513321;
-      animation: pulse 1s ease-in-out infinite;
-    }
-    .loader span:nth-child(2) { animation-delay: .15s; }
-    .loader span:nth-child(3) { animation-delay: .3s; }
-    small {
-      color: #998d83;
-      font-size: 11px;
-    }
-    @keyframes pulse {
-      0%, 60%, 100% { opacity: .28; transform: translateY(0); }
-      30% { opacity: 1; transform: translateY(-5px); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .loader span { animation: none; opacity: .65; }
-    }
-  `
-
-  const main = document.createElement('main')
-  const brand = document.createElement('div')
-  brand.className = 'brand'
-  brand.textContent = 'EV'
-
-  const status = document.createElement('span')
-  status.className = 'status'
-  status.textContent = 'Pedido registrado'
-
-  const title = document.createElement('h1')
-  title.textContent = 'Tudo certo!'
-
-  const description = document.createElement('p')
-  description.textContent =
-    'Estamos abrindo o WhatsApp para você confirmar os detalhes do pedido com a nossa loja.'
-
-  const loader = document.createElement('div')
-  loader.className = 'loader'
-  loader.setAttribute('aria-label', 'Redirecionando para o WhatsApp')
-  loader.append(
-    document.createElement('span'),
-    document.createElement('span'),
-    document.createElement('span'),
-  )
-
-  const helper = document.createElement('small')
-  helper.textContent = 'Você será redirecionado automaticamente em instantes.'
-
-  main.append(brand, status, title, description, loader, helper)
-  document.head.append(style)
-  document.body.append(main)
-}
-
 export default function FloatingCart({
   resolvedItems,
   isOpen,
@@ -271,7 +129,6 @@ export default function FloatingCart({
   >('loading-zones')
   const [unsupportedNeighborhood, setUnsupportedNeighborhood] = useState(false)
   const [deliveryError, setDeliveryError] = useState('')
-  const whatsappWindowRef = useRef<Window | null>(null)
   const storeHours = getStoreHoursStatus()
 
   useEffect(() => {
@@ -297,24 +154,6 @@ export default function FloatingCart({
       window.removeEventListener('keydown', closeOnEscape)
     }
   }, [isOpen, onClose])
-
-  const prepareWhatsappWindow = useCallback(() => {
-    const currentWindow = whatsappWindowRef.current
-    if (currentWindow && !currentWindow.closed) return
-
-    const whatsappWindow = window.open('', '_blank')
-    if (whatsappWindow) {
-      renderWhatsappRedirectPage(whatsappWindow)
-      whatsappWindow.opener = null
-    }
-    whatsappWindowRef.current = whatsappWindow
-  }, [])
-
-  const closePreparedWhatsappWindow = useCallback(() => {
-    const whatsappWindow = whatsappWindowRef.current
-    if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close()
-    whatsappWindowRef.current = null
-  }, [])
 
   useEffect(() => {
     if (!customerAccount) return
@@ -467,23 +306,34 @@ export default function FloatingCart({
     checkoutState !== 'creating' &&
     !activeSession
 
-  function getWhatsappMessage(finalTotal: number, orderId?: string) {
-    return `Olá, ${storeConfig.name}!
+  function getWhatsappMessage(finalTotal: number, orderId: string) {
+    const orderCode = orderId.slice(0, 8).toUpperCase()
+    const items = resolvedItems
+      .map((item) => {
+        const option = item.optionLabel ? ` (${item.optionLabel})` : ''
+        const extras = item.selectedExtras.length
+          ? ` + ${item.selectedExtras.map((extra) => extra.label).join(', ')}`
+          : ''
+        return `${item.quantity}x ${item.name}${option}${extras}`
+      })
+      .join('\n')
+    const complement = customer.complement.trim()
+      ? ` - ${customer.complement.trim()}`
+      : ''
 
-Quero confirmar este pedido:
-${resolvedItems
-  .map(
-    (item) =>
-      `- ${item.quantity}× ${item.name}${item.optionLabel ? ` (${item.optionLabel})` : ''} — ${formatCurrency(item.subtotal)}`,
-  )
-  .join('\n')}
+    return `Olá! Quero acompanhar o pedido *#${orderCode}*.
 
-${orderId ? `Pedido: #${orderId}\n` : ''}Cliente: ${customer.name || 'não informado'}
-WhatsApp: ${customer.phone || 'não informado'}
-Entrega: ${customer.address}, ${customer.number} - ${customer.neighborhood}
-Taxa de entrega: ${formatCurrency(deliveryFee)}
-Pagamento: ${paymentLabels[paymentMethod]}
-Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTrackingUrl(orderId)}` : ''}`
+*Itens*
+${items}
+
+*Entrega*
+${customer.name}
+${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
+
+*Pagamento:* ${paymentLabels[paymentMethod]}
+*Total:* ${formatCurrency(finalTotal)}
+
+*Status do pedido:* ${getTrackingUrl(orderId)}`
   }
 
   function updateCustomer(field: keyof typeof customer, value: string) {
@@ -575,12 +425,8 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
       return
     }
 
-    prepareWhatsappWindow()
     const data = await submitOrder(false)
-    if (!data) {
-      closePreparedWhatsappWindow()
-      return
-    }
+    if (!data) return
 
     setCheckoutState('success')
     setSession({
@@ -589,19 +435,8 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
       fingerprint,
     })
     setMessage(
-      'Pedido registrado com sucesso! Estamos abrindo o WhatsApp para você confirmar os detalhes.',
+      'Pedido registrado com sucesso! Escolha abaixo como deseja acompanhar.',
     )
-    const whatsappLink = buildWhatsappLink(
-      whatsappPhone,
-      getWhatsappMessage(data.total, data.order_id),
-    )
-    const whatsappWindow = whatsappWindowRef.current
-    if (whatsappWindow && !whatsappWindow.closed) {
-      whatsappWindow.location.replace(whatsappLink)
-      whatsappWindowRef.current = null
-    } else {
-      window.location.assign(whatsappLink)
-    }
   }
 
   function handlePaymentResult(result: PaymentResult) {
@@ -610,7 +445,6 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
       result.status === 'cancelled' ||
       result.status === 'refunded'
     ) {
-      closePreparedWhatsappWindow()
       setPaymentResult(null)
       setCheckoutState('error')
       setMessage(
@@ -620,27 +454,10 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
     }
 
     setPaymentResult(result)
-    const whatsappLink = buildWhatsappLink(
-      whatsappPhone,
-      getWhatsappMessage(activeSession?.total ?? estimatedTotal, result.order_id),
-    )
-    const whatsappWindow = whatsappWindowRef.current
-    const openedWhatsappSeparately = Boolean(
-      whatsappWindow && !whatsappWindow.closed,
-    )
-    if (openedWhatsappSeparately && whatsappWindow) {
-      whatsappWindow.location.replace(whatsappLink)
-      whatsappWindowRef.current = null
-    } else {
-      window.location.assign(whatsappLink)
-    }
-
     if (result.status === 'approved') {
       setCheckoutState('success')
       setMessage('Pagamento aprovado! Seu pedido já foi confirmado.')
-      if (openedWhatsappSeparately) {
-        window.location.assign(`/pedido/${result.order_id}`)
-      }
+      window.location.assign(`/pedido/${result.order_id}`)
       return
     }
 
@@ -672,10 +489,9 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
   }, [paymentResult])
 
   const handlePaymentError = useCallback((errorMessage: string) => {
-    closePreparedWhatsappWindow()
     setCheckoutState('error')
     setMessage(errorMessage)
-  }, [closePreparedWhatsappWindow])
+  }, [])
 
   const transactionData =
     paymentResult?.point_of_interaction?.transaction_data
@@ -1036,7 +852,6 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     customer={{ email: customer.email }}
                     onResult={handlePaymentResult}
                     onError={handlePaymentError}
-                    onPaymentStart={prepareWhatsappWindow}
                   />
                 </Suspense>
               ) : null}
@@ -1057,21 +872,6 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                       <button type="button" onClick={copyPixCode}>
                         {copied ? 'Código copiado' : 'Copiar Pix'}
                       </button>
-                    ) : null}
-                    {paymentResult?.order_id ? (
-                      <a
-                        href={buildWhatsappLink(
-                          whatsappPhone,
-                          getWhatsappMessage(
-                            activeSession?.total ?? estimatedTotal,
-                            paymentResult.order_id,
-                          ),
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Avisar loja
-                      </a>
                     ) : null}
                     <a href={`/pedido/${paymentResult?.order_id}`}>
                       Consultar pedido
@@ -1101,20 +901,6 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                   >
                     Ver status do pedido
                   </a>
-                  <a
-                    className="cart-whatsappButton cart-whatsappButton--secondary"
-                    href={buildWhatsappLink(
-                      whatsappPhone,
-                      getWhatsappMessage(
-                        activeSession?.total ?? estimatedTotal,
-                        paymentResult.order_id,
-                      ),
-                    )}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Avisar loja no WhatsApp
-                  </a>
                 </div>
               ) : null}
 
@@ -1137,7 +923,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Abrir WhatsApp novamente
+                    Acompanhar pedido pelo WhatsApp
                   </a>
                 </div>
               ) : null}
@@ -1151,7 +937,7 @@ Total: ${formatCurrency(finalTotal)}${orderId ? `\nAcompanhamento: ${getTracking
                 >
                   {checkoutState === 'creating'
                     ? 'Registrando pedido…'
-                    : 'Registrar e confirmar no WhatsApp'}
+                    : 'Registrar pedido'}
                 </button>
               ) : null}
             </div>
