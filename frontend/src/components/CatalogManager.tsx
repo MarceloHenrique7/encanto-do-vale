@@ -23,7 +23,8 @@ import type {
 import { refreshCatalog } from '@/features/catalog/catalogStore'
 import { formatCurrency } from '@/lib/formatters'
 
-type Catalog = { products: Product[]; categories: Category[] }
+type Catalog = { products: Product[]; categories: Category[]; extras: ProductExtra[] }
+type ExtraDraft = Omit<ProductExtra, 'price'> & { price: string }
 type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras' | 'extraGroups'> & {
   basePrice: string
   options: Array<Omit<ProductOption, 'price'> & { price: string }>
@@ -36,7 +37,7 @@ type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras' | 'extraGro
   >
 }
 
-const emptyCatalog: Catalog = { products: [], categories: [] }
+const emptyCatalog: Catalog = { products: [], categories: [], extras: [] }
 
 function slug(value: string) {
   return value
@@ -131,6 +132,8 @@ export default function CatalogManager() {
     shortLabel: '',
   })
   const [editingCategoryId, setEditingCategoryId] = useState('')
+  const [extraDraft, setExtraDraft] = useState<ExtraDraft>({ id: '', label: '', price: '' })
+  const [editingExtraId, setEditingExtraId] = useState('')
 
   async function loadCatalog(selectFirst = false) {
     setLoading(true)
@@ -163,29 +166,13 @@ export default function CatalogManager() {
   }, [catalog.products, search])
 
   const reusableExtras = useMemo(() => {
-    const library = new Map<
-      string,
-      ProductExtra & { sourceProducts: string[] }
-    >()
-
-    catalog.products
-      .filter((product) => product.id !== selectedId)
-      .forEach((product) => {
-        product.extras?.forEach((extra) => {
-          const key = `${slug(extra.label)}:${extra.price.toFixed(2)}`
-          const saved = library.get(key)
-          if (saved) {
-            saved.sourceProducts.push(product.name)
-          } else {
-            library.set(key, { ...extra, sourceProducts: [product.name] })
-          }
-        })
-      })
-
-    return [...library.values()].sort((first, second) =>
-      first.label.localeCompare(second.label, 'pt-BR'),
-    )
-  }, [catalog.products, selectedId])
+    return catalog.extras.map((extra) => ({
+      ...extra,
+      sourceProducts: catalog.products
+        .filter((product) => product.extras?.some((item) => item.id === extra.id))
+        .map((product) => product.name),
+    })).sort((first, second) => first.label.localeCompare(second.label, 'pt-BR'))
+  }, [catalog.extras, catalog.products])
 
   function choose(product: Product) {
     setSelectedId(product.id)
@@ -479,29 +466,97 @@ export default function CatalogManager() {
     }
   }
 
+  function createExtraDraft() {
+    setEditingExtraId('')
+    setExtraDraft({ id: '', label: '', price: '' })
+    document.querySelector('#complementos')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  function chooseExtra(extra: ProductExtra) {
+    setEditingExtraId(extra.id)
+    setExtraDraft({ ...extra, price: String(extra.price).replace('.', ',') })
+  }
+
+  async function saveExtra(event: FormEvent) {
+    event.preventDefault()
+    try {
+      const payload = {
+        id: extraDraft.id || slug(extraDraft.label),
+        label: extraDraft.label,
+        price: money(extraDraft.price),
+      }
+      const data = await api(
+        editingExtraId
+          ? `/api/admin/extras/${encodeURIComponent(editingExtraId)}`
+          : '/api/admin/extras',
+        {
+          method: editingExtraId ? 'PUT' : 'POST',
+          body: JSON.stringify(payload),
+        },
+      )
+      setEditingExtraId(data.extra.id)
+      setExtraDraft({ ...data.extra, price: String(data.extra.price).replace('.', ',') })
+      await loadCatalog()
+      await refreshCatalog()
+      setMessage('Complemento salvo no banco de dados e publicado no cardápio.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao salvar complemento.')
+    }
+  }
+
+  async function removeLibraryExtra() {
+    if (!editingExtraId) return
+    const usageCount = catalog.products.filter((product) =>
+      product.extras?.some((extra) => extra.id === editingExtraId),
+    ).length
+    const warning = usageCount
+      ? `Este complemento está em ${usageCount} produto(s). Ao excluir, ele também será removido desses produtos. Continuar?`
+      : 'Excluir este complemento definitivamente?'
+    if (!window.confirm(warning)) return
+    try {
+      await api(`/api/admin/extras/${encodeURIComponent(editingExtraId)}`, {
+        method: 'DELETE',
+      })
+      setEditingExtraId('')
+      setExtraDraft({ id: '', label: '', price: '' })
+      await loadCatalog()
+      await refreshCatalog()
+      setMessage('Complemento excluído do banco de dados e dos produtos vinculados.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao excluir complemento.')
+    }
+  }
+
   return (
     <section className="catalog-manager">
       <div className="catalog-managerHero">
         <div>
           <span>Catálogo da loja</span>
-          <h1>Produtos e categorias</h1>
+          <h1>Produtos, complementos e categorias</h1>
           <p>As alterações são publicadas na vitrine e usadas no cálculo seguro do checkout.</p>
         </div>
-        <button type="button" className="manager-primaryAction" onClick={createProduct}>
-          <FiPlus /> Novo produto
-        </button>
+        <div className="catalog-managerHeroActions">
+          <button type="button" onClick={createExtraDraft}><FiPlus /> Novo complemento</button>
+          <button type="button" className="manager-primaryAction" onClick={createProduct}><FiPlus /> Novo produto</button>
+        </div>
       </div>
 
       <div className="catalog-managerMetrics">
         <article><FiBox /><strong>{catalog.products.length}</strong><span>produtos</span></article>
         <article><FiEye /><strong>{catalog.products.filter((item) => item.isAvailable).length}</strong><span>disponíveis</span></article>
         <article><FiEyeOff /><strong>{catalog.products.filter((item) => !item.isAvailable).length}</strong><span>pausados</span></article>
-        <article><strong>{catalog.categories.length}</strong><span>categorias</span></article>
+        <article><FiLayers /><strong>{catalog.extras.length}</strong><span>complementos</span></article>
       </div>
+
+      <nav className="catalog-managerNav" aria-label="Áreas do catálogo">
+        <a href="#produtos"><FiBox /> Produtos</a>
+        <a href="#complementos"><FiLayers /> Complementos</a>
+        <a href="#categorias"><FiEdit3 /> Categorias</a>
+      </nav>
 
       {message ? <p className="catalog-managerMessage">{message}</p> : null}
 
-      <div className="catalog-managerWorkspace">
+      <div className="catalog-managerWorkspace" id="produtos">
         <aside className="catalog-managerList">
           <label><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar produto..." /></label>
           <small>{loading ? 'Carregando…' : `${filtered.length} itens encontrados`}</small>
@@ -792,7 +847,38 @@ export default function CatalogManager() {
         </form>
       </div>
 
-      <section className="catalog-categoryManager">
+      <section className="catalog-extraManager" id="complementos">
+        <header>
+          <div><span>Biblioteca geral</span><h2>Gerenciar complementos</h2><p>Crie uma vez, reutilize nos produtos e mantenha nome e preço atualizados em todos os vínculos.</p></div>
+          <button type="button" onClick={createExtraDraft}><FiPlus /> Novo complemento</button>
+        </header>
+        <div className="catalog-extraManagerBody">
+          <div className="catalog-extraManagerList">
+            {reusableExtras.map((extra) => (
+              <button type="button" className={editingExtraId === extra.id ? 'is-active' : ''} key={extra.id} onClick={() => chooseExtra(extra)}>
+                <FiLayers />
+                <span><strong>{extra.label}</strong><small>{formatCurrency(extra.price)} · {extra.sourceProducts.length} produto(s)</small></span>
+                <FiEdit3 />
+              </button>
+            ))}
+            {!reusableExtras.length ? <div className="catalog-editorEmpty"><FiLayers /><span>Nenhum complemento cadastrado.</span></div> : null}
+          </div>
+          <form className="catalog-extraManagerForm" onSubmit={saveExtra}>
+            <div className="catalog-managerFields">
+              <label className="is-wide"><span>Nome do complemento</span><input required placeholder="Ex.: Morango" value={extraDraft.label} onChange={(event) => setExtraDraft((current) => ({ ...current, label: event.target.value, id: editingExtraId ? current.id : slug(event.target.value) }))} /></label>
+              <label><span>ID único</span><input required value={extraDraft.id} onChange={(event) => setExtraDraft((current) => ({ ...current, id: slug(event.target.value) }))} /></label>
+              <label><span>Preço adicional</span><div className="catalog-moneyInput"><span>R$</span><input required inputMode="decimal" placeholder="0,00" value={extraDraft.price} onChange={(event) => setExtraDraft((current) => ({ ...current, price: event.target.value }))} /></div></label>
+            </div>
+            <div className="catalog-extraManagerActions">
+              <button type="submit" className="manager-primaryAction"><FiCheck /> {editingExtraId ? 'Atualizar complemento' : 'Criar complemento'}</button>
+              {editingExtraId ? <button type="button" className="is-danger" onClick={removeLibraryExtra}><FiTrash2 /> Excluir</button> : null}
+            </div>
+            <small>As alterações são salvas no banco e aplicadas automaticamente aos produtos que usam este complemento.</small>
+          </form>
+        </div>
+      </section>
+
+      <section className="catalog-categoryManager" id="categorias">
         <header><div><span>Organização</span><h2>Gerenciar categorias</h2></div><button type="button" onClick={() => { setEditingCategoryId(''); setCategoryDraft({ id: '', name: '', shortLabel: '' }) }}><FiPlus /> Nova categoria</button></header>
         <div className="catalog-categoryBody">
           <div>{catalog.categories.map((category) => <button type="button" className={editingCategoryId === category.id ? 'is-active' : ''} key={category.id} onClick={() => { setEditingCategoryId(category.id); setCategoryDraft(category) }}><FiEdit3 /><span><strong>{category.name}</strong><small>{category.shortLabel || category.id}</small></span></button>)}</div>

@@ -3,11 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { sanitizeText, toMoney } from '../api/_payment-utils.js'
 import {
   createCategory,
+  createExtra,
   createProduct,
   deleteCategory,
+  deleteExtra,
   deleteProduct,
   getCatalog,
   updateCategory,
+  updateExtra,
   updateProduct,
 } from '../services/catalog-store.js'
 
@@ -51,6 +54,12 @@ function normalizePricedEntries(entries, kind) {
       price,
     }]
   })
+}
+
+function normalizeExtra(value) {
+  const [extra] = normalizePricedEntries([value], 'extra')
+  if (!extra) return { error: 'Informe um nome e um preço válido para o complemento.' }
+  return { extra }
 }
 
 function normalizeExtraGroups(entries, extras) {
@@ -186,6 +195,29 @@ export async function putAdminProduct(request, response) {
 export async function removeAdminProduct(request, response) {
   const deleted = await deleteProduct(sanitizeText(request.params.id, 80))
   if (!deleted) return response.status(404).json({ error: 'Produto não encontrado.' })
+  return response.status(204).end()
+}
+
+export async function postAdminExtra(request, response) {
+  const normalized = normalizeExtra(request.body)
+  if (normalized.error) return response.status(400).json({ error: normalized.error })
+  const extra = await createExtra(normalized.extra)
+  if (!extra) return response.status(409).json({ error: 'Já existe um complemento com este ID.' })
+  return response.status(201).json({ extra })
+}
+
+export async function putAdminExtra(request, response) {
+  const normalized = normalizeExtra(request.body)
+  if (normalized.error) return response.status(400).json({ error: normalized.error })
+  const result = await updateExtra(sanitizeText(request.params.id, 80), normalized.extra)
+  if (result === false) return response.status(409).json({ error: 'O novo ID já está em uso.' })
+  if (!result) return response.status(404).json({ error: 'Complemento não encontrado.' })
+  return response.json({ extra: result })
+}
+
+export async function removeAdminExtra(request, response) {
+  const deleted = await deleteExtra(sanitizeText(request.params.id, 80))
+  if (!deleted) return response.status(404).json({ error: 'Complemento não encontrado.' })
   return response.status(204).end()
 }
 

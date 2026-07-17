@@ -38,10 +38,13 @@ import {
   getAdminCatalog,
   getPublicCatalog,
   postAdminCategory,
+  postAdminExtra,
   postAdminProduct,
   putAdminCategory,
+  putAdminExtra,
   putAdminProduct,
   removeAdminCategory,
+  removeAdminExtra,
   removeAdminProduct,
 } from './controllers/catalog.js'
 import {
@@ -158,6 +161,9 @@ export function createApp() {
   app.post('/api/admin/products', requireAdmin, postAdminProduct)
   app.put('/api/admin/products/:id', requireAdmin, putAdminProduct)
   app.delete('/api/admin/products/:id', requireAdmin, removeAdminProduct)
+  app.post('/api/admin/extras', requireAdmin, postAdminExtra)
+  app.put('/api/admin/extras/:id', requireAdmin, putAdminExtra)
+  app.delete('/api/admin/extras/:id', requireAdmin, removeAdminExtra)
   app.post('/api/admin/categories', requireAdmin, postAdminCategory)
   app.put('/api/admin/categories/:id', requireAdmin, putAdminCategory)
   app.delete('/api/admin/categories/:id', requireAdmin, removeAdminCategory)

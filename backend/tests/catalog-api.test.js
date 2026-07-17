@@ -44,6 +44,13 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
     .send({ password: 'senha-forte-de-teste' })
   assert.equal(login.status, 200)
 
+  const extra = await manager.post('/api/admin/extras').send({
+    id: 'complemento-crud',
+    label: 'Complemento CRUD',
+    price: 4.5,
+  })
+  assert.equal(extra.status, 201)
+
   const category = await manager.post('/api/admin/categories').send({
     id: 'teste-crud',
     name: 'Teste CRUD',
@@ -65,6 +72,7 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
     extras: [
       { id: 'morango', label: 'Morango', price: 3.5 },
       { id: 'banana', label: 'Banana', price: 2 },
+      extra.body.extra,
     ],
     extraGroups: [{
       id: 'frutas',
@@ -93,10 +101,33 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
   assert.equal(update.body.product.basePrice, 21.5)
   assert.equal(update.body.product.isAvailable, false)
 
+  const updatedExtra = await manager
+    .put('/api/admin/extras/complemento-crud')
+    .send({ id: 'complemento-crud', label: 'Complemento atualizado', price: 5.75 })
+  assert.equal(updatedExtra.status, 200)
+
   const published = await request(app).get('/api/catalog')
   assert.equal(
     published.body.products.find((item) => item.id === 'produto-crud')
       .isAvailable,
+    false,
+  )
+  assert.deepEqual(
+    published.body.products
+      .find((item) => item.id === 'produto-crud')
+      .extras.find((item) => item.id === 'complemento-crud'),
+    { id: 'complemento-crud', label: 'Complemento atualizado', price: 5.75 },
+  )
+
+  assert.equal(
+    (await manager.delete('/api/admin/extras/complemento-crud')).status,
+    204,
+  )
+  const withoutExtra = await request(app).get('/api/catalog')
+  assert.equal(
+    withoutExtra.body.products
+      .find((item) => item.id === 'produto-crud')
+      .extras.some((item) => item.id === 'complemento-crud'),
     false,
   )
 

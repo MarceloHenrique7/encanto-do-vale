@@ -17,14 +17,46 @@ function catalogFile() {
 }
 
 function emptyCatalog() {
-  return { categories: [], products: [] }
+  return { categories: [], products: [], extras: [] }
 }
 
 function normalizeDatabase(value) {
+  const products = Array.isArray(value?.products) ? value.products : []
+  const savedExtras = Array.isArray(value?.extras) ? value.extras : []
+  const extrasById = new Map(savedExtras.map((extra) => [extra.id, extra]))
+  products.forEach((product) => {
+    product.extras?.forEach((extra) => {
+      if (!extrasById.has(extra.id)) extrasById.set(extra.id, extra)
+    })
+  })
   return {
     categories: Array.isArray(value?.categories) ? value.categories : [],
-    products: Array.isArray(value?.products) ? value.products : [],
+    products,
+    extras: [...extrasById.values()],
   }
+}
+
+function replaceExtraInProducts(products, extraId, extra) {
+  return products.map((product) => {
+    if (!product.extras?.some((item) => item.id === extraId)) return product
+    return {
+      ...product,
+      extras: product.extras.map((item) => item.id === extraId ? extra : item),
+      extraGroups: product.extraGroups?.map((group) => ({
+        ...group,
+        extraIds: group.extraIds.map((id) => id === extraId ? extra.id : id),
+      })),
+    }
+  })
+}
+
+function syncProductExtras(catalog, product) {
+  product.extras?.forEach((extra) => {
+    const index = catalog.extras.findIndex((item) => item.id === extra.id)
+    if (index === -1) catalog.extras.push(extra)
+    else catalog.extras[index] = extra
+    catalog.products = replaceExtraInProducts(catalog.products, extra.id, extra)
+  })
 }
 
 export function getCatalogSnapshot() {
@@ -93,6 +125,7 @@ export async function createProduct(product) {
   return serializedWrite(async () => {
     const catalog = await readCatalog()
     if (catalog.products.some((item) => item.id === product.id)) return null
+    syncProductExtras(catalog, product)
     catalog.products.unshift(product)
     await writeCatalog(catalog)
     return product
@@ -110,9 +143,65 @@ export async function updateProduct(productId, product) {
     ) {
       return false
     }
+    syncProductExtras(catalog, product)
     catalog.products[index] = product
     await writeCatalog(catalog)
     return product
+  })
+}
+
+export async function createExtra(extra) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    if (catalog.extras.some((item) => item.id === extra.id)) return null
+    catalog.extras.push(extra)
+    await writeCatalog(catalog)
+    return extra
+  })
+}
+
+export async function updateExtra(extraId, extra) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    const index = catalog.extras.findIndex((item) => item.id === extraId)
+    if (index === -1) return null
+    if (extra.id !== extraId && catalog.extras.some((item) => item.id === extra.id)) {
+      return false
+    }
+    catalog.extras[index] = extra
+    catalog.products = replaceExtraInProducts(catalog.products, extraId, extra)
+    await writeCatalog(catalog)
+    return extra
+  })
+}
+
+export async function deleteExtra(extraId) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    const index = catalog.extras.findIndex((item) => item.id === extraId)
+    if (index === -1) return false
+    catalog.extras.splice(index, 1)
+    catalog.products = catalog.products.map((product) => ({
+      ...product,
+      ...(product.extras
+        ? { extras: product.extras.filter((extra) => extra.id !== extraId) }
+        : {}),
+      ...(product.extraGroups
+        ? {
+            extraGroups: product.extraGroups.flatMap((group) => {
+              const extraIds = group.extraIds.filter((id) => id !== extraId)
+              if (!extraIds.length) return []
+              return [{
+                ...group,
+                extraIds,
+                maxSelections: Math.min(group.maxSelections, extraIds.length),
+              }]
+            }),
+          }
+        : {}),
+    }))
+    await writeCatalog(catalog)
+    return true
   })
 }
 
