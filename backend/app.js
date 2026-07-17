@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import compression from 'compression'
 import express from 'express'
+import { shouldUsePostgres } from './services/postgres.js'
 
 import {
   getCustomerOrders,
@@ -47,6 +48,11 @@ import {
   getDeliveryZones,
   postCalculateDelivery,
 } from './controllers/delivery.js'
+import {
+  getAdminStoreSettings,
+  getPublicStoreSettings,
+  putAdminStoreSettings,
+} from './controllers/settings.js'
 
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const staticDirectory = path.resolve(serviceDirectory, '../dist')
@@ -109,9 +115,15 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }))
 
   app.get('/api/health', (_request, response) => {
-    response.json({ ok: true })
+    response.json({
+      ok: true,
+      storage: shouldUsePostgres() ? 'neon-postgres' : 'local-files',
+      environment: process.env.NODE_ENV ?? 'development',
+      persistent: shouldUsePostgres(),
+    })
   })
   app.get('/api/catalog', getPublicCatalog)
+  app.get('/api/store-settings', getPublicStoreSettings)
   app.get('/api/delivery-zones', getDeliveryZones)
   app.post('/api/calculate-delivery', postCalculateDelivery)
   app.get('/api/auth/session', getCustomerSession)
@@ -141,6 +153,8 @@ export function createApp() {
   app.get('/api/admin/orders/stream', requireAdmin, getAdminOrderStream)
   app.patch('/api/admin/orders/:id/status', requireAdmin, patchAdminOrderStatus)
   app.get('/api/admin/catalog', requireAdmin, getAdminCatalog)
+  app.get('/api/admin/store-settings', requireAdmin, getAdminStoreSettings)
+  app.put('/api/admin/store-settings', requireAdmin, putAdminStoreSettings)
   app.post('/api/admin/products', requireAdmin, postAdminProduct)
   app.put('/api/admin/products/:id', requireAdmin, putAdminProduct)
   app.delete('/api/admin/products/:id', requireAdmin, removeAdminProduct)

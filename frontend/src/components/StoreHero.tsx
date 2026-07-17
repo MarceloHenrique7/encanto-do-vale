@@ -3,13 +3,15 @@ import { FiClock, FiMapPin, FiPackage, FiTruck } from 'react-icons/fi'
 import { storeConfig } from '@/config/store'
 import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
+import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
 type StoreHeroProps = {
   imageSrc?: string
 }
 
 export default function StoreHero({ imageSrc }: StoreHeroProps) {
-  const hoursStatus = getStoreHoursStatus()
+  const settings = useStoreSettings()
+  const hoursStatus = getStoreHoursStatus(new Date(), settings.weeklyHours)
 
   return (
     <section className="store-hero" aria-labelledby="store-title">
@@ -46,10 +48,10 @@ export default function StoreHero({ imageSrc }: StoreHeroProps) {
       <div className="store-hero__services">
         <span>
           <FiTruck /> Delivery a partir de{' '}
-          {formatCurrency(storeConfig.defaultDeliveryFee)}
+          {settings.minimumDeliveryFee === 0 ? 'grátis' : formatCurrency(settings.minimumDeliveryFee)}
         </span>
         <span><FiPackage /> Entrega combinada</span>
-        <span><FiClock /> {storeConfig.orderHours}</span>
+        <span><FiClock /> {settings.minimumOrder > 0 ? `Pedido mínimo ${formatCurrency(settings.minimumOrder)}` : 'Sem pedido mínimo'}</span>
       </div>
     </section>
   )

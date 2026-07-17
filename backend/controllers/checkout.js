@@ -12,6 +12,7 @@ import {
 } from '../services/mercado-pago.js'
 import { validateMercadoPagoWebhookSignature } from '../services/mercado-pago-webhook.js'
 import { getStoreHoursStatus } from '../services/store-hours.js'
+import { getStoreSettings } from '../services/store-settings.js'
 import {
   createOrder,
   findOrder,
@@ -68,6 +69,7 @@ function cleanCustomer(body) {
 }
 
 export async function postOrder(request, response) {
+  await getStoreSettings()
   const storeHours = getStoreHoursStatus()
   if (!storeHours.isOpen) {
     return response.status(409).json({

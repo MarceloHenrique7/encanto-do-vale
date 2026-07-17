@@ -58,6 +58,20 @@ npm run db:migrate
 
 Isso cria as tabelas `customers` e `orders`, se ainda nao existirem.
 
+O projeto também cria `catalog_state` e `store_settings`. Produtos, categorias,
+clientes, pedidos, horários, pedido mínimo, bairros e taxas ficam persistidos no
+Neon e não são substituídos por um novo deploy.
+
+Depois de publicar, abra `https://seudominio.com.br/api/health` e confirme:
+
+```json
+{"storage":"neon-postgres","persistent":true}
+```
+
+Se aparecer `local-files`, confira se `NODE_ENV=production` e `DATABASE_URL`
+estão definidas no mesmo serviço Node que executa `npm start`. Não use uma URL
+de branch temporária do Neon em produção.
+
 ## 4. Mercado Pago
 
 No painel Mercado Pago Developers:

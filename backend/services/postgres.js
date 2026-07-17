@@ -58,6 +58,12 @@ export async function migratePostgres() {
       data jsonb not null,
       updated_at timestamptz not null default now()
     );
+
+    create table if not exists store_settings (
+      key text primary key,
+      data jsonb not null,
+      updated_at timestamptz not null default now()
+    );
   `)
 
   await migrationPromise

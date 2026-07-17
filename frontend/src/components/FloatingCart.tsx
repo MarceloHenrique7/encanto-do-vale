@@ -16,6 +16,7 @@ import {
 import { fromCents, toCents, type ResolvedCartItem } from '@/domain/cart'
 import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
+import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
 const PaymentBrick = lazy(() => import('@/components/PaymentBrick'))
 
@@ -129,7 +130,8 @@ export default function FloatingCart({
   >('loading-zones')
   const [unsupportedNeighborhood, setUnsupportedNeighborhood] = useState(false)
   const [deliveryError, setDeliveryError] = useState('')
-  const storeHours = getStoreHoursStatus()
+  const settings = useStoreSettings()
+  const storeHours = getStoreHoursStatus(new Date(), settings.weeklyHours)
 
   useEffect(() => {
     if (!isOpen) return
@@ -302,6 +304,7 @@ export default function FloatingCart({
   const canFinalize =
     storeHours.isOpen &&
     Boolean(resolvedItems.length) &&
+    subtotal >= settings.minimumOrder &&
     deliveryReady &&
     checkoutState !== 'creating' &&
     !activeSession
@@ -807,6 +810,12 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                   <div className="cart-closedNotice">
                     <strong>Loja fechada agora</strong>
                     <span>{storeHours.detail}</span>
+                  </div>
+                ) : null}
+                {settings.minimumOrder > 0 && subtotal < settings.minimumOrder ? (
+                  <div className="cart-minimumNotice">
+                    <strong>Pedido mínimo de {formatCurrency(settings.minimumOrder)}</strong>
+                    <span>Adicione mais {formatCurrency(settings.minimumOrder - subtotal)} em produtos.</span>
                   </div>
                 ) : null}
                 <div>

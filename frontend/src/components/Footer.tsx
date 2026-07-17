@@ -1,6 +1,8 @@
 import { storeConfig } from '@/config/store'
+import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
 export default function Footer() {
+  const settings = useStoreSettings()
   return (
     <footer className="footer" id="contatos">
       <div className="footer-main">
@@ -21,7 +23,11 @@ export default function Footer() {
         <div>
           <span>Onde estamos</span>
           <strong>{storeConfig.city}</strong>
-          <p>{storeConfig.orderHours}</p>
+          <p>
+            {settings.weeklyHours.map((hour) =>
+              `${hour.label}: ${hour.closed ? 'fechado' : `${hour.open}–${hour.close}`}`,
+            ).join(' | ')}
+          </p>
         </div>
       </div>
       <div className="footer-bottom">

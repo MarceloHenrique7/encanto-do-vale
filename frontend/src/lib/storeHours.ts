@@ -37,9 +37,12 @@ function zonedNow(now: Date) {
   }
 }
 
-export function getStoreHoursStatus(now = new Date()) {
+export function getStoreHoursStatus(
+  now = new Date(),
+  weeklyHours = storeConfig.weeklyHours,
+) {
   const { day: today, minutes: currentMinutes } = zonedNow(now)
-  const todayHours = storeConfig.weeklyHours.find((entry) => entry.day === today)
+  const todayHours = weeklyHours.find((entry) => entry.day === today)
 
   if (
     todayHours &&
@@ -54,7 +57,7 @@ export function getStoreHoursStatus(now = new Date()) {
     }
   }
 
-  const schedule = [...storeConfig.weeklyHours, ...storeConfig.weeklyHours]
+  const schedule = [...weeklyHours, ...weeklyHours]
   const todayIndex = schedule.findIndex((entry) => entry.day === today)
   const nextOpen =
     todayHours &&

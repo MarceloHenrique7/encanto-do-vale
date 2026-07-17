@@ -1,4 +1,4 @@
-import { deliveryZones } from '../config/deliveryZones.js'
+import { getCachedStoreSettings } from '../services/store-settings.js'
 
 export const UNAVAILABLE_DELIVERY_MESSAGE =
   'Esse bairro ainda não está disponível para entrega. Chame no WhatsApp para consultar.'
@@ -27,23 +27,25 @@ export function normalizeNeighborhoodName(name) {
     .trim()
 }
 
-const deliveryZoneIndex = new Map()
-
-for (const zone of deliveryZones) {
-  const names = [zone.neighborhood, ...(zone.aliases ?? [])]
-  for (const name of names) {
-    deliveryZoneIndex.set(normalizeNeighborhoodName(name), zone)
+function deliveryZoneIndex() {
+  const index = new Map()
+  for (const zone of getCachedStoreSettings().deliveryZones) {
+    const names = [zone.neighborhood, ...(zone.aliases ?? [])]
+    for (const name of names) {
+      index.set(normalizeNeighborhoodName(name), zone)
+    }
   }
+  return index
 }
 
 export function getDeliveryZoneByNeighborhood(neighborhood) {
-  const zone = deliveryZoneIndex.get(normalizeNeighborhoodName(neighborhood))
+  const zone = deliveryZoneIndex().get(normalizeNeighborhoodName(neighborhood))
   if (!zone) return null
 
   return {
     neighborhood: zone.neighborhood,
     distanceKm: zone.distanceKm,
-    deliveryFee: calculateDeliveryFee(zone.distanceKm),
+    deliveryFee: zone.deliveryFee,
   }
 }
 
@@ -63,9 +65,9 @@ export function formatCurrencyBRL(value) {
 }
 
 export function listDeliveryZones() {
-  return deliveryZones
+  return getCachedStoreSettings().deliveryZones
     .map((zone) => {
-      const deliveryFee = calculateDeliveryFee(zone.distanceKm)
+      const deliveryFee = zone.deliveryFee
       return {
         neighborhood: zone.neighborhood,
         distanceKm: zone.distanceKm,

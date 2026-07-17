@@ -3,6 +3,7 @@ import { FiMapPin, FiShoppingBag, FiUser } from 'react-icons/fi'
 import { storeConfig } from '@/config/store'
 import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
+import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
 type HeaderProps = {
   cartCount: number
@@ -20,7 +21,8 @@ export default function Header({
   onOpenProfile,
 }: HeaderProps) {
   const firstName = customerName?.split(' ')[0]
-  const hoursStatus = getStoreHoursStatus()
+  const settings = useStoreSettings()
+  const hoursStatus = getStoreHoursStatus(new Date(), settings.weeklyHours)
 
   return (
     <header className="site-header">

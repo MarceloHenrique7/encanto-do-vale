@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import { formatCurrency } from '@/lib/formatters'
 import CatalogManager from '@/components/CatalogManager'
+import StoreSettingsManager from '@/components/StoreSettingsManager'
 
 type RestaurantStatus =
   | 'awaiting_payment'
@@ -200,7 +201,7 @@ export default function ManagerPage() {
   const [filter, setFilter] = useState<'active' | RestaurantStatus>('active')
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [actionError, setActionError] = useState('')
-  const [activeSection, setActiveSection] = useState<'orders' | 'catalog'>(
+  const [activeSection, setActiveSection] = useState<'orders' | 'catalog' | 'settings'>(
     'orders',
   )
   const [soundEnabled, setSoundEnabled] = useState(true)
@@ -510,10 +511,17 @@ export default function ManagerPage() {
           >
             Produtos e categorias
           </button>
+          <button
+            type="button"
+            className={activeSection === 'settings' ? 'is-active' : ''}
+            onClick={() => setActiveSection('settings')}
+          >
+            Configurações da loja
+          </button>
           <a href="/" target="_blank" rel="noreferrer">Ver cardápio</a>
         </nav>
 
-        {activeSection === 'catalog' ? <CatalogManager /> : (
+        {activeSection === 'catalog' ? <CatalogManager /> : activeSection === 'settings' ? <StoreSettingsManager /> : (
           <>
         <section className="manager-welcome">
           <div>

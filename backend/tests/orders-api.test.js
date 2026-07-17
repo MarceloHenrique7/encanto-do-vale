@@ -3,6 +3,8 @@ import { rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+
+process.env.STORE_FORCE_OPEN = 'true'
 import request from 'supertest'
 
 import { createApp } from '../app.js'

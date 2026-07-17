@@ -1,13 +1,5 @@
 const timeZone = 'America/Bahia'
-const weeklyHours = [
-  { day: 0, label: 'Dom', open: '13:00', close: '19:30', closed: false },
-  { day: 1, label: 'Seg', open: '18:45', close: '23:30', closed: false },
-  { day: 2, label: 'Ter', open: '18:45', close: '23:30', closed: false },
-  { day: 3, label: 'Qua', open: '18:45', close: '23:30', closed: false },
-  { day: 4, label: 'Qui', open: '18:45', close: '23:30', closed: false },
-  { day: 5, label: 'Sex', open: '18:45', close: '23:30', closed: false },
-  { day: 6, label: 'Sab', open: '13:45', close: '19:00', closed: false },
-]
+import { getCachedStoreSettings } from './store-settings.js'
 const weekDayMap = {
   Sun: 0,
   Mon: 1,
@@ -44,6 +36,10 @@ function zonedNow(now) {
 }
 
 export function getStoreHoursStatus(now = new Date()) {
+  if (process.env.STORE_FORCE_OPEN === 'true') {
+    return { isOpen: true, label: 'Aceitando pedidos', detail: 'Loja aberta para pedidos' }
+  }
+  const weeklyHours = getCachedStoreSettings().weeklyHours
   const { day: today, minutes: currentMinutes } = zonedNow(now)
   const todayHours = weeklyHours.find((entry) => entry.day === today)
 

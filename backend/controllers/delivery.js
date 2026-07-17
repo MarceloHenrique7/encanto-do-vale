@@ -3,15 +3,18 @@ import {
   listDeliveryZones,
   validateDeliveryZone,
 } from '../utils/deliveryFee.js'
+import { getStoreSettings } from '../services/store-settings.js'
 
-export function getDeliveryZones(_request, response) {
+export async function getDeliveryZones(_request, response) {
+  await getStoreSettings()
   return response.json({
     calculationMode: 'fixed-zones',
     zones: listDeliveryZones(),
   })
 }
 
-export function postCalculateDelivery(request, response) {
+export async function postCalculateDelivery(request, response) {
+  await getStoreSettings()
   const deliveryType =
     request.body?.deliveryType ?? request.body?.delivery_type ?? 'delivery'
 

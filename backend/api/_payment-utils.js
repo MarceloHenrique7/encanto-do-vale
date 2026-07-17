@@ -1,5 +1,6 @@
 import { getCatalog, getCatalogSnapshot } from '../services/catalog-store.js'
-import { validateDeliveryZone } from '../utils/deliveryFee.js'
+import { getCachedStoreSettings } from '../services/store-settings.js'
+import { formatCurrencyBRL, validateDeliveryZone } from '../utils/deliveryFee.js'
 
 export const MERCADO_PAGO_PAYMENTS_URL =
   'https://api.mercadopago.com/v1/payments'
@@ -285,6 +286,12 @@ function normalizeOrderWithCatalog(catalog, body, { requireEmail = true } = {}) 
     productsSubtotalInCents + toCents(normalizedDeliveryFee),
   )
   const subtotal = fromCents(productsSubtotalInCents)
+  const minimumOrder = getCachedStoreSettings().minimumOrder
+  if (subtotal < minimumOrder) {
+    return {
+      error: `O pedido mínimo é ${formatCurrencyBRL(minimumOrder)} sem contar a entrega.`,
+    }
+  }
 
   return {
     checkoutItems,
