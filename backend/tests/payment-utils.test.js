@@ -5,6 +5,7 @@ import {
   fromCents,
   getAccessToken,
   getMercadoPagoError,
+  hasValidExtraGroupSelections,
   normalizeOrder,
   toCents,
   toMoney,
@@ -145,6 +146,25 @@ test('valida opções e adicionais pelo catálogo publicado', () => {
   })
   assert.equal(withExtra.checkoutItems[0].unitPrice, 16.99)
   assert.equal(withExtra.total, 33.98)
+})
+
+test('mantém grupos opcionais e valida o máximo de complementos', () => {
+  const product = {
+    extraGroups: [{
+      id: 'frutas',
+      label: 'Escolha suas frutas',
+      minSelections: 1,
+      maxSelections: 2,
+      extraIds: ['morango', 'banana', 'uva'],
+    }],
+  }
+
+  assert.equal(hasValidExtraGroupSelections(product, []), true)
+  assert.equal(hasValidExtraGroupSelections(product, ['morango']), true)
+  assert.equal(
+    hasValidExtraGroupSelections(product, ['morango', 'banana', 'uva']),
+    false,
+  )
 })
 
 test('bloqueia preço local diferente do catálogo publicado', () => {

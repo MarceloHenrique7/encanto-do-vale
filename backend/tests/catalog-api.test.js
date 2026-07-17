@@ -62,9 +62,27 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
     isFeatured: false,
     isPromo: false,
     categoryIds: ['teste-crud'],
+    extras: [
+      { id: 'morango', label: 'Morango', price: 3.5 },
+      { id: 'banana', label: 'Banana', price: 2 },
+    ],
+    extraGroups: [{
+      id: 'frutas',
+      label: 'Escolha sua fruta',
+      minSelections: 1,
+      maxSelections: 1,
+      extraIds: ['morango', 'banana'],
+    }],
   })
   assert.equal(creation.status, 201)
   assert.equal(creation.body.product.basePrice, 19.9)
+  assert.deepEqual(creation.body.product.extraGroups, [{
+    id: 'frutas',
+    label: 'Escolha sua fruta',
+    minSelections: 0,
+    maxSelections: 1,
+    extraIds: ['morango', 'banana'],
+  }])
 
   const update = await manager.put('/api/admin/products/produto-crud').send({
     ...creation.body.product,

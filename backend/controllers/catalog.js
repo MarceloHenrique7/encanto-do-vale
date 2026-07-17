@@ -53,6 +53,48 @@ function normalizePricedEntries(entries, kind) {
   })
 }
 
+function normalizeExtraGroups(entries, extras) {
+  if (!Array.isArray(entries) || !extras.length) return []
+  const validExtraIds = new Set(extras.map((extra) => extra.id))
+  const assignedExtraIds = new Set()
+  const usedGroupIds = new Set()
+
+  return entries.slice(0, 12).flatMap((entry) => {
+    const label = sanitizeText(entry?.label, 100)
+    const extraIds = Array.isArray(entry?.extraIds)
+      ? [...new Set(entry.extraIds.map((id) => slug(id)))]
+          .filter((id) => validExtraIds.has(id) && !assignedExtraIds.has(id))
+          .slice(0, 30)
+      : []
+    if (!label || !extraIds.length) return []
+
+    extraIds.forEach((id) => assignedExtraIds.add(id))
+    const requestedMaximum = Number.parseInt(entry?.maxSelections, 10) || 1
+    const minSelections = 0
+    const maxSelections = Math.min(
+      extraIds.length,
+      Math.max(1, requestedMaximum),
+    )
+
+    const baseId = slug(entry?.id || label)
+    let id = baseId
+    let suffix = 2
+    while (usedGroupIds.has(id)) {
+      id = `${baseId}-${suffix}`
+      suffix += 1
+    }
+    usedGroupIds.add(id)
+
+    return [{
+      id,
+      label,
+      minSelections,
+      maxSelections,
+      extraIds,
+    }]
+  })
+}
+
 async function normalizeProduct(value) {
   const catalog = await getCatalog()
   const name = sanitizeText(value?.name, 120)
@@ -85,6 +127,7 @@ async function normalizeProduct(value) {
     })}`
   const options = normalizePricedEntries(value?.options, 'option')
   const extras = normalizePricedEntries(value?.extras, 'extra')
+  const extraGroups = normalizeExtraGroups(value?.extraGroups, extras)
 
   return {
     product: {
@@ -108,6 +151,7 @@ async function normalizeProduct(value) {
       categoryIds: validCategoryIds,
       ...(options.length ? { options } : {}),
       ...(extras.length ? { extras } : {}),
+      ...(extraGroups.length ? { extraGroups } : {}),
     },
   }
 }

@@ -17,6 +17,14 @@ export type ProductExtra = {
   price: number
 }
 
+export type ProductExtraGroup = {
+  id: string
+  label: string
+  minSelections: number
+  maxSelections: number
+  extraIds: string[]
+}
+
 export type Product = {
   id: string
   name: string
@@ -32,6 +40,7 @@ export type Product = {
   categoryIds: string[]
   options?: ProductOption[]
   extras?: ProductExtra[]
+  extraGroups?: ProductExtraGroup[]
 }
 
 export type CartItem = {

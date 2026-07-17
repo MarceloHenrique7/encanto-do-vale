@@ -17,16 +17,23 @@ import type {
   Category,
   Product,
   ProductExtra,
+  ProductExtraGroup,
   ProductOption,
 } from '@/domain/catalog'
 import { refreshCatalog } from '@/features/catalog/catalogStore'
 import { formatCurrency } from '@/lib/formatters'
 
 type Catalog = { products: Product[]; categories: Category[] }
-type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras'> & {
+type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras' | 'extraGroups'> & {
   basePrice: string
   options: Array<Omit<ProductOption, 'price'> & { price: string }>
   extras: Array<Omit<ProductExtra, 'price'> & { price: string }>
+  extraGroups: Array<
+    Omit<ProductExtraGroup, 'minSelections' | 'maxSelections'> & {
+      minSelections: string
+      maxSelections: string
+    }
+  >
 }
 
 const emptyCatalog: Catalog = { products: [], categories: [] }
@@ -61,6 +68,7 @@ function newDraft(categories: Category[]): DraftProduct {
     categoryIds: categories[0] ? [categories[0].id] : [],
     options: [],
     extras: [],
+    extraGroups: [],
   }
 }
 
@@ -76,6 +84,11 @@ function productDraft(product: Product): DraftProduct {
       ...extra,
       price: String(extra.price).replace('.', ','),
     })),
+    extraGroups: (product.extraGroups ?? []).map((group) => ({
+      ...group,
+      minSelections: String(group.minSelections),
+      maxSelections: String(group.maxSelections),
+    })),
   }
 }
 
@@ -86,6 +99,11 @@ function productPayload(draft: DraftProduct) {
     basePrice: money(draft.basePrice),
     options: draft.options.map((option) => ({ ...option, price: money(option.price) })),
     extras: draft.extras.map((extra) => ({ ...extra, price: money(extra.price) })),
+    extraGroups: draft.extraGroups.map((group) => ({
+      ...group,
+      minSelections: 0,
+      maxSelections: Math.max(1, Number.parseInt(group.maxSelections, 10) || 1),
+    })),
   }
 }
 
@@ -195,6 +213,100 @@ export default function CatalogManager() {
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
+  function patchOption(
+    index: number,
+    changes: Partial<DraftProduct['options'][number]>,
+  ) {
+    patchDraft(
+      'options',
+      draft.options.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, ...changes } : option,
+      ),
+    )
+  }
+
+  function patchExtra(
+    index: number,
+    changes: Partial<DraftProduct['extras'][number]>,
+  ) {
+    patchDraft(
+      'extras',
+      draft.extras.map((extra, extraIndex) =>
+        extraIndex === index ? { ...extra, ...changes } : extra,
+      ),
+    )
+  }
+
+  function patchExtraGroup(
+    index: number,
+    changes: Partial<DraftProduct['extraGroups'][number]>,
+  ) {
+    patchDraft(
+      'extraGroups',
+      draft.extraGroups.map((group, groupIndex) =>
+        groupIndex === index ? { ...group, ...changes } : group,
+      ),
+    )
+  }
+
+  function toggleGroupExtra(groupIndex: number, extraId: string) {
+    setDraft((current) => {
+      const selectedGroup = current.extraGroups[groupIndex]
+      if (!selectedGroup) return current
+      const isRemoving = selectedGroup.extraIds.includes(extraId)
+      const extraGroups = current.extraGroups.map((group, index) => {
+        if (index === groupIndex) {
+          return {
+            ...group,
+            extraIds: isRemoving
+              ? group.extraIds.filter((id) => id !== extraId)
+              : [...group.extraIds, extraId],
+          }
+        }
+        return isRemoving
+          ? group
+          : { ...group, extraIds: group.extraIds.filter((id) => id !== extraId) }
+      })
+      return { ...current, extraGroups }
+    })
+  }
+
+  function removeExtra(index: number) {
+    const extraId = draft.extras[index]?.id
+    setDraft((current) => ({
+      ...current,
+      extras: current.extras.filter((_, extraIndex) => extraIndex !== index),
+      extraGroups: extraId
+        ? current.extraGroups.map((group) => ({
+            ...group,
+            extraIds: group.extraIds.filter((id) => id !== extraId),
+          }))
+        : current.extraGroups,
+    }))
+  }
+
+  function renameExtra(index: number, label: string) {
+    setDraft((current) => {
+      const savedExtra = current.extras[index]
+      if (!savedExtra) return current
+      const shouldRegenerateId =
+        !savedExtra.id || savedExtra.id === slug(savedExtra.label)
+      const nextId = shouldRegenerateId ? slug(label) : savedExtra.id
+      return {
+        ...current,
+        extras: current.extras.map((extra, extraIndex) =>
+          extraIndex === index ? { ...extra, label, id: nextId } : extra,
+        ),
+        extraGroups: current.extraGroups.map((group) => ({
+          ...group,
+          extraIds: group.extraIds.map((id) =>
+            id === savedExtra.id ? nextId : id,
+          ),
+        })),
+      }
+    })
+  }
+
   function hasExtra(extra: ProductExtra) {
     return draft.extras.some(
       (current) =>
@@ -253,6 +365,21 @@ export default function CatalogManager() {
 
   async function saveProduct(event: FormEvent) {
     event.preventDefault()
+    const invalidGroup = draft.extraGroups.find((group) => {
+      const maximum = Number.parseInt(group.maxSelections, 10) || 0
+      return (
+        !group.label.trim() ||
+        !group.extraIds.length ||
+        maximum < 1 ||
+        maximum > group.extraIds.length
+      )
+    })
+    if (invalidGroup) {
+      setMessage(
+        `Revise o grupo “${invalidGroup.label || 'sem nome'}”: selecione complementos e confira o limite máximo.`,
+      )
+      return
+    }
     setSaving(true)
     setMessage('')
     try {
@@ -435,22 +562,61 @@ export default function CatalogManager() {
           </section>
 
           <section className="catalog-managerSection">
-            <header><div><h3>Categorias</h3><p>Ajude o cliente a encontrar este item.</p></div></header>
+            <header>
+              <div className="catalog-managerSectionTitle">
+                <span>03</span>
+                <div><h3>Categorias</h3><p>Ajude o cliente a encontrar este item.</p></div>
+              </div>
+            </header>
             <div className="catalog-managerChips">{catalog.categories.map((category) => <button type="button" className={draft.categoryIds.includes(category.id) ? 'is-active' : ''} key={category.id} onClick={() => toggleCategory(category)}>{category.name}</button>)}</div>
           </section>
 
           <section className="catalog-managerSection">
-            <header><div><h3>Variações e tamanhos</h3><p>Preços diferentes para tamanhos, sabores ou combos.</p></div><button type="button" onClick={() => patchDraft('options', [...draft.options, { id: '', label: '', quantityLabel: '', price: draft.basePrice }])}><FiPlus /> Adicionar</button></header>
-            {draft.options.map((option, index) => <div className="catalog-managerRow" key={index}>
-              <input placeholder="Nome da opção" value={option.label} onChange={(event) => patchDraft('options', draft.options.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value, id: item.id || slug(event.target.value) } : item))} />
-              <input placeholder="Descrição curta" value={option.quantityLabel ?? ''} onChange={(event) => patchDraft('options', draft.options.map((item, itemIndex) => itemIndex === index ? { ...item, quantityLabel: event.target.value } : item))} />
-              <input placeholder="Preço" value={option.price} onChange={(event) => patchDraft('options', draft.options.map((item, itemIndex) => itemIndex === index ? { ...item, price: event.target.value } : item))} />
-              <button type="button" onClick={() => patchDraft('options', draft.options.filter((_, itemIndex) => itemIndex !== index))}><FiTrash2 /></button>
-            </div>)}
+            <header>
+              <div className="catalog-managerSectionTitle">
+                <span>04</span>
+                <div><h3>Variações e tamanhos</h3><p>Preços diferentes para tamanhos, sabores ou combos.</p></div>
+              </div>
+              <button type="button" onClick={() => patchDraft('options', [...draft.options, { id: '', label: '', quantityLabel: '', price: draft.basePrice }])}><FiPlus /> Adicionar variação</button>
+            </header>
+            <div className="catalog-optionEditorList">
+              {draft.options.map((option, index) => (
+                <article className="catalog-optionEditor" key={index}>
+                  <header>
+                    <div>
+                      <strong>{option.label || `Variação ${index + 1}`}</strong>
+                      <small>{option.price ? formatCurrency(money(option.price)) : 'Informe o preço'}</small>
+                    </div>
+                    <button type="button" aria-label={`Excluir ${option.label || `variação ${index + 1}`}`} onClick={() => patchDraft('options', draft.options.filter((_, itemIndex) => itemIndex !== index))}><FiTrash2 /></button>
+                  </header>
+                  <div className="catalog-inlineFields catalog-inlineFields--option">
+                    <label>
+                      <span>Nome da variação</span>
+                      <input placeholder="Ex.: Grande" value={option.label} onChange={(event) => patchOption(index, { label: event.target.value, id: option.id || slug(event.target.value) })} />
+                    </label>
+                    <label>
+                      <span>Descrição curta</span>
+                      <input placeholder="Ex.: Serve 4 pessoas" value={option.quantityLabel ?? ''} onChange={(event) => patchOption(index, { quantityLabel: event.target.value })} />
+                    </label>
+                    <label>
+                      <span>Preço</span>
+                      <div className="catalog-moneyInput"><span>R$</span><input inputMode="decimal" placeholder="0,00" value={option.price} onChange={(event) => patchOption(index, { price: event.target.value })} /></div>
+                    </label>
+                  </div>
+                </article>
+              ))}
+              {!draft.options.length ? <div className="catalog-editorEmpty"><FiLayers /><span>Nenhuma variação cadastrada. Adicione somente se o produto tiver tamanhos ou versões diferentes.</span></div> : null}
+            </div>
           </section>
 
-          <section className="catalog-managerSection">
-            <header><div><h3>Complementos</h3><p>Reutilize opções já cadastradas ou crie uma nova.</p></div><button type="button" onClick={() => patchDraft('extras', [...draft.extras, { id: '', label: '', price: '' }])}><FiPlus /> Novo complemento</button></header>
+          <section className="catalog-managerSection catalog-managerSection--extras">
+            <header>
+              <div className="catalog-managerSectionTitle">
+                <span>05</span>
+                <div><h3>Complementos</h3><p>Edite o nome e o preço adicional cobrado neste produto.</p></div>
+              </div>
+              <button type="button" onClick={() => patchDraft('extras', [...draft.extras, { id: '', label: '', price: '' }])}><FiPlus /> Novo complemento</button>
+            </header>
             {reusableExtras.length ? (
               <div className="catalog-extraLibrary">
                 <div className="catalog-extraLibraryTitle">
@@ -473,11 +639,153 @@ export default function CatalogManager() {
             ) : (
               <div className="catalog-extraLibraryEmpty"><FiLayers /><span>Quando você cadastrar complementos, eles aparecerão aqui para reutilização.</span></div>
             )}
-            {draft.extras.map((extra, index) => <div className="catalog-managerRow catalog-managerRow--extra" key={index}>
-              <input placeholder="Nome do adicional" value={extra.label} onChange={(event) => patchDraft('extras', draft.extras.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value, id: item.id || slug(event.target.value) } : item))} />
-              <input placeholder="Preço" value={extra.price} onChange={(event) => patchDraft('extras', draft.extras.map((item, itemIndex) => itemIndex === index ? { ...item, price: event.target.value } : item))} />
-              <button type="button" onClick={() => patchDraft('extras', draft.extras.filter((_, itemIndex) => itemIndex !== index))}><FiTrash2 /></button>
-            </div>)}
+            <div className="catalog-extraEditorList">
+              {draft.extras.map((extra, index) => (
+                <article className="catalog-extraEditor" key={index}>
+                  <header>
+                    <div>
+                      <span>Complemento {String(index + 1).padStart(2, '0')}</span>
+                      <strong>{extra.label || 'Novo complemento'}</strong>
+                    </div>
+                    <div>
+                      <small>{extra.price ? `Adicional de ${formatCurrency(money(extra.price))}` : 'Preço ainda não informado'}</small>
+                      <button type="button" aria-label={`Excluir ${extra.label || `complemento ${index + 1}`}`} title="Excluir complemento" onClick={() => removeExtra(index)}><FiTrash2 /></button>
+                    </div>
+                  </header>
+                  <div className="catalog-inlineFields catalog-inlineFields--extra">
+                    <label>
+                      <span>Nome do complemento</span>
+                      <input required placeholder="Ex.: Morango" value={extra.label} onChange={(event) => renameExtra(index, event.target.value)} />
+                    </label>
+                    <label>
+                      <span>Preço adicional</span>
+                      <div className="catalog-moneyInput"><span>R$</span><input required inputMode="decimal" placeholder="0,00" value={extra.price} onChange={(event) => patchExtra(index, { price: event.target.value })} /></div>
+                    </label>
+                  </div>
+                  <p>Altere os campos acima e clique em <strong>Salvar e publicar</strong> no final do formulário.</p>
+                </article>
+              ))}
+              {!draft.extras.length ? <div className="catalog-editorEmpty"><FiLayers /><span>Nenhum complemento neste produto. Clique em “Novo complemento” ou reutilize um item da biblioteca.</span></div> : null}
+            </div>
+          </section>
+
+          <section className="catalog-managerSection catalog-managerSection--groups">
+            <header>
+              <div className="catalog-managerSectionTitle">
+                <span>06</span>
+                <div><h3>Grupos de complementos</h3><p>Organize as escolhas como no iFood e defina quantos itens o cliente pode selecionar.</p></div>
+              </div>
+              <button
+                type="button"
+                disabled={!draft.extras.length}
+                onClick={() => patchDraft('extraGroups', [
+                  ...draft.extraGroups,
+                  {
+                    id: `grupo-${draft.extraGroups.length + 1}`,
+                    label: '',
+                    minSelections: '0',
+                    maxSelections: '1',
+                    extraIds: [],
+                  },
+                ])}
+              >
+                <FiPlus /> Novo grupo
+              </button>
+            </header>
+
+            <div className="catalog-extraGroupList">
+              {draft.extraGroups.map((group, groupIndex) => (
+                <article className="catalog-extraGroupEditor" key={groupIndex}>
+                  <header>
+                    <div>
+                      <span>Grupo {String(groupIndex + 1).padStart(2, '0')}</span>
+                      <strong>{group.label || 'Grupo sem nome'}</strong>
+                      <small>
+                        Opcional · até {group.maxSelections || '1'} escolha(s)
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Excluir ${group.label || `grupo ${groupIndex + 1}`}`}
+                      onClick={() => patchDraft(
+                        'extraGroups',
+                        draft.extraGroups.filter((_, index) => index !== groupIndex),
+                      )}
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </header>
+
+                  <div className="catalog-extraGroupSettings">
+                    <label className="is-wide">
+                      <span>Nome exibido ao cliente</span>
+                      <input
+                        required
+                        placeholder="Ex.: Escolha sua fruta"
+                        value={group.label}
+                        onChange={(event) => patchExtraGroup(groupIndex, {
+                          label: event.target.value,
+                          id: group.id || slug(event.target.value),
+                        })}
+                      />
+                    </label>
+                    <label>
+                      <span>Máximo</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max={Math.max(1, group.extraIds.length)}
+                        value={group.maxSelections}
+                        onChange={(event) => patchExtraGroup(groupIndex, { maxSelections: event.target.value })}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="catalog-extraGroupChoices">
+                    <div>
+                      <strong>Complementos deste grupo</strong>
+                      <small>Cada complemento pode pertencer a apenas um grupo.</small>
+                    </div>
+                    <div>
+                      {draft.extras.map((extra, extraIndex) => {
+                        const isSelected = group.extraIds.includes(extra.id)
+                        const belongsElsewhere = draft.extraGroups.some(
+                          (savedGroup, savedIndex) =>
+                            savedIndex !== groupIndex && savedGroup.extraIds.includes(extra.id),
+                        )
+                        return (
+                          <label className={isSelected ? 'is-selected' : ''} key={`${extra.id || 'novo'}-${extraIndex}`}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!extra.id || !extra.label.trim()}
+                              onChange={() => toggleGroupExtra(groupIndex, extra.id)}
+                            />
+                            <span>
+                              <strong>{extra.label || 'Complemento sem nome'}</strong>
+                              <small>
+                                {extra.price ? formatCurrency(money(extra.price)) : 'Sem preço'}
+                                {belongsElsewhere ? ' · mover para este grupo' : ''}
+                              </small>
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {!draft.extraGroups.length ? (
+                <div className="catalog-editorEmpty">
+                  <FiLayers />
+                  <span>
+                    {draft.extras.length
+                      ? 'Crie um grupo e selecione os complementos que farão parte dele.'
+                      : 'Cadastre pelo menos um complemento antes de criar grupos.'}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </section>
 
           <footer><span>{selectedId ? 'Alterações substituem o item atual.' : 'Um novo item será criado.'}</span><button disabled={saving} type="submit" className="manager-primaryAction">{saving ? 'Salvando…' : 'Salvar e publicar'}</button></footer>

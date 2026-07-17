@@ -69,6 +69,72 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     return base + extrasSum
   }
 
+  function getProductExtraGroups(product: Product) {
+    const extras = product.extras ?? []
+    const groupedIds = new Set(
+      (product.extraGroups ?? []).flatMap((group) => group.extraIds),
+    )
+    const groups = (product.extraGroups ?? []).flatMap((group) => {
+      const groupExtras = group.extraIds.flatMap((extraId) => {
+        const extra = extras.find((entry) => entry.id === extraId)
+        return extra ? [extra] : []
+      })
+      if (!groupExtras.length) return []
+      return [{ ...group, extras: groupExtras }]
+    })
+    const ungroupedExtras = extras.filter((extra) => !groupedIds.has(extra.id))
+
+    if (ungroupedExtras.length) {
+      groups.push({
+        id: 'outros-adicionais',
+        label: groups.length ? 'Outros adicionais' : 'Adicionais',
+        minSelections: 0,
+        maxSelections: ungroupedExtras.length,
+        extraIds: ungroupedExtras.map((extra) => extra.id),
+        extras: ungroupedExtras,
+      })
+    }
+    return groups
+  }
+
+  function toggleExtra(
+    product: Product,
+    groupId: string,
+    extraId: string,
+    checked: boolean,
+  ) {
+    const group = getProductExtraGroups(product).find((entry) => entry.id === groupId)
+    if (!group) return
+
+    setSelectedExtras((current) => {
+      const currentList = current[product.id] ?? []
+      const selectedInGroup = currentList.filter((id) => group.extraIds.includes(id))
+      let next = currentList
+
+      if (!checked) {
+        next = currentList.filter((id) => id !== extraId)
+      } else if (group.maxSelections === 1) {
+        next = [...currentList.filter((id) => !group.extraIds.includes(id)), extraId]
+      } else if (selectedInGroup.length < group.maxSelections) {
+        next = [...currentList, extraId]
+      }
+
+      return { ...current, [product.id]: [...new Set(next)] }
+    })
+    setCartError('')
+  }
+
+  function getExtraGroupError(product: Product) {
+    const selected = selectedExtras[product.id] ?? []
+    for (const group of getProductExtraGroups(product)) {
+      const count = selected.filter((id) => group.extraIds.includes(id)).length
+      if (count > group.maxSelections) {
+        return `Escolha no máximo ${group.maxSelections} item(ns) em “${group.label}”.`
+      }
+    }
+    return ''
+  }
+
   function getSelectedQuantity(productId: string) {
     return selectedQuantities[productId] ?? 1
   }
@@ -427,33 +493,61 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                 </div>
               ) : null}
 
-                {confirmingProduct.extras?.length ? (
-                  <div className="menu-card-optionGroup">
-                    <label className="menu-card-field">
-                      <span>Adicionais (opcionais)</span>
-                      <div className="menu-card-extras">
-                        {confirmingProduct.extras.map((extra) => (
-                          <label key={extra.id} className="menu-extra">
-                            <input
-                              type="checkbox"
-                              checked={(selectedExtras[confirmingProduct.id] ?? []).includes(extra.id)}
-                              onChange={(e) => {
-                                setSelectedExtras((current) => {
-                                  const currentList = current[confirmingProduct.id] ?? []
-                                  const next = e.target.checked
-                                    ? [...currentList, extra.id]
-                                    : currentList.filter((id) => id !== extra.id)
-                                  return { ...current, [confirmingProduct.id]: next }
-                                })
-                              }}
-                            />
-                            <span>{extra.label} (+{formatCurrency(extra.price)})</span>
-                          </label>
-                        ))}
-                      </div>
-                    </label>
-                  </div>
-                ) : null}
+              {confirmingProduct.extras?.length ? (
+                <div className="menu-extraGroups">
+                  {getProductExtraGroups(confirmingProduct).map((group) => {
+                    const selected = selectedExtras[confirmingProduct.id] ?? []
+                    const selectedCount = selected.filter((id) =>
+                      group.extraIds.includes(id),
+                    ).length
+                    const limitReached = selectedCount >= group.maxSelections
+                    return (
+                      <section className="menu-extraGroup" key={group.id}>
+                        <header>
+                          <div>
+                            <strong>{group.label}</strong>
+                            <small>
+                              Opcional
+                            </small>
+                          </div>
+                          <span>
+                            {group.maxSelections === 1
+                              ? 'Escolha 1'
+                              : `Escolha até ${group.maxSelections}`}
+                          </span>
+                        </header>
+                        <div className="menu-card-extras">
+                          {group.extras.map((extra) => {
+                            const isSelected = selected.includes(extra.id)
+                            return (
+                              <label key={extra.id} className={`menu-extra${isSelected ? ' is-selected' : ''}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={!isSelected && limitReached && group.maxSelections > 1}
+                                  onChange={(event) =>
+                                    toggleExtra(
+                                      confirmingProduct,
+                                      group.id,
+                                      extra.id,
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                <span>{extra.label}</span>
+                                <strong>+ {formatCurrency(extra.price)}</strong>
+                              </label>
+                            )
+                          })}
+                        </div>
+                        <small className="menu-extraGroupCount">
+                          {selectedCount} de {group.maxSelections} selecionado(s)
+                        </small>
+                      </section>
+                    )
+                  })}
+                </div>
+              ) : null}
 
               <div className="product-confirmation-actions">
                 <div className="product-quantityRow">
@@ -512,6 +606,11 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                     type="button"
                     className={`menu-card-cartButton${confirmingProduct.isAvailable ? '' : ' is-disabled'}`}
                     onClick={() => {
+                      const groupError = getExtraGroupError(confirmingProduct)
+                      if (groupError) {
+                        setCartError(groupError)
+                        return
+                      }
                       const wasAdded = onAddToCart(
                         confirmingProduct.id,
                         getSelectedOption(confirmingProduct)?.id,

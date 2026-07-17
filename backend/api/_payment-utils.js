@@ -35,6 +35,15 @@ export function toMoney(value) {
   return Math.round(parsed * 100) / 100
 }
 
+export function hasValidExtraGroupSelections(product, requestedExtraIds) {
+  return (product.extraGroups ?? []).every((group) => {
+    const selectedCount = requestedExtraIds.filter((extraId) =>
+      group.extraIds.includes(extraId),
+    ).length
+    return selectedCount <= group.maxSelections
+  })
+}
+
 export function toCents(value) {
   return Math.round(toMoney(value) * 100)
 }
@@ -211,6 +220,10 @@ function normalizeOrderWithCatalog(catalog, body, { requireEmail = true } = {}) 
       })
 
       if (selectedExtras.length !== requestedExtraIds.length) {
+        return null
+      }
+
+      if (!hasValidExtraGroupSelections(product, requestedExtraIds)) {
         return null
       }
 
