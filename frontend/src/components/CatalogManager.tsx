@@ -509,7 +509,7 @@ export default function CatalogManager() {
             {filtered.map((product) => (
               <article className={selectedId === product.id ? 'is-active' : ''} key={product.id}>
                 <button type="button" className="catalog-managerSelect" onClick={() => choose(product)}>
-                  <span>{product.imageSrc ? <img src={product.imageSrc} alt="" /> : <FiBox />}</span>
+                  <span>{product.imageSrc ? <img src={product.imageSrc} alt="" loading="lazy" decoding="async" /> : <FiBox />}</span>
                   <div><strong>{product.name}</strong><small>{formatCurrency(product.basePrice)}</small></div>
                 </button>
                 <button type="button" className={product.isAvailable ? 'is-online' : ''} onClick={() => toggleAvailability(product)} title="Alterar disponibilidade">

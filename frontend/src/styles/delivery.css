@@ -5660,3 +5660,93 @@ body .footer {
     align-items: flex-start;
   }
 }
+
+/* Complementos: leitura alinhada e toque confortavel em qualquer tela. */
+.menu-extraGroup > header > div,
+.menu-extraGroup .menu-extra > span {
+  min-width: 0;
+  text-align: left;
+}
+
+.menu-extraGroup > header strong,
+.menu-extraGroup .menu-extra > span {
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.menu-extraGroup .menu-extra > strong {
+  justify-self: end;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cart-overlay,
+.cart-drawer {
+  overscroll-behavior: contain;
+}
+
+.cart-scrollArea {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
+
+@media (max-width: 680px) {
+  .menu-extraGroups {
+    gap: 12px;
+  }
+
+  .menu-extraGroup > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px;
+  }
+
+  .menu-extraGroup .menu-extra {
+    min-height: 54px;
+    padding: 11px 12px;
+    gap: 9px;
+    align-items: start;
+  }
+
+  .menu-extraGroup .menu-extra input {
+    margin-top: 2px;
+  }
+
+  .menu-extraGroupCount {
+    padding-inline: 12px;
+  }
+
+  .cart-drawer {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .cart-scrollArea {
+    scrollbar-gutter: auto;
+  }
+}
+
+@media (max-width: 390px) {
+  .menu-extraGroup > header {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-extraGroup > header > span {
+    justify-self: start;
+  }
+
+  .menu-extraGroup .menu-extra {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .menu-extraGroup .menu-extra > strong {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: -5px;
+    text-align: left;
+  }
+}

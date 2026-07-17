@@ -1,16 +1,13 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { FiChevronRight, FiMapPin, FiShoppingBag } from 'react-icons/fi'
 
 import Cardapio from '@/components/Cardapio'
 import CustomerAuthGate, {
   type CustomerUser,
 } from '@/components/CustomerAuthGate'
-import CustomerProfile from '@/components/CustomerProfile'
 import FloatingCart from '@/components/FloatingCart'
 import Footer from '@/components/Footer'
 import Header from '@/components/Header'
-import OrderStatusPage from '@/components/OrderStatusPage'
-import PrivacyPage from '@/components/PrivacyPage'
 import StoreHero from '@/components/StoreHero'
 import { storeConfig } from '@/config/store'
 import { useCatalogProducts } from '@/features/catalog/catalogStore'
@@ -18,6 +15,9 @@ import { useCart } from '@/hooks/useCart'
 import { formatCurrency } from '@/lib/formatters'
 
 const ManagerPage = lazy(() => import('@/components/ManagerPage'))
+const CustomerProfile = lazy(() => import('@/components/CustomerProfile'))
+const OrderStatusPage = lazy(() => import('@/components/OrderStatusPage'))
+const PrivacyPage = lazy(() => import('@/components/PrivacyPage'))
 
 const checkoutMessages = {
   success: {
@@ -54,24 +54,33 @@ function StoreExperience({
 }) {
   const orderPageMatch = window.location.pathname.match(/^\/pedido\/([^/]+)$/)
   const products = useCatalogProducts()
-  const availableProducts = products.filter((product) => product.isAvailable)
+  const availableProducts = useMemo(
+    () => products.filter((product) => product.isAvailable),
+    [products],
+  )
   const cart = useCart(availableProducts)
   const [checkoutStatus, setCheckoutStatus] = useState(getCheckoutStatus)
   const [profileOpen, setProfileOpen] = useState(false)
 
   if (orderPageMatch) {
-    return <OrderStatusPage orderId={decodeURIComponent(orderPageMatch[1])} />
+    return (
+      <Suspense fallback={<div className="route-loading">Abrindo pedido…</div>}>
+        <OrderStatusPage orderId={decodeURIComponent(orderPageMatch[1])} />
+      </Suspense>
+    )
   }
 
   return (
     <div className="page-shell">
-      {user ? (
-        <CustomerProfile
-          user={user}
-          isOpen={profileOpen}
-          onClose={() => setProfileOpen(false)}
-          onUpdate={onUserUpdate}
-        />
+      {user && profileOpen ? (
+        <Suspense fallback={null}>
+          <CustomerProfile
+            user={user}
+            isOpen
+            onClose={() => setProfileOpen(false)}
+            onUpdate={onUserUpdate}
+          />
+        </Suspense>
       ) : null}
       <FloatingCart
         resolvedItems={cart.resolvedItems}
@@ -173,7 +182,11 @@ export default function App() {
   const isManagerPage = window.location.pathname === '/gestor'
   const isPrivacyPage = window.location.pathname === '/privacidade'
   if (isPrivacyPage) {
-    return <PrivacyPage />
+    return (
+      <Suspense fallback={<div className="route-loading">Abrindo privacidade…</div>}>
+        <PrivacyPage />
+      </Suspense>
+    )
   }
 
   if (isAdminPage) {

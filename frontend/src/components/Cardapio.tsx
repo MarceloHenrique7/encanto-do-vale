@@ -151,9 +151,12 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     setSearchTerm('')
   }
 
-  const readyProductsCount = products.filter(
-    (product) => product.fulfillmentType === 'entrega-pronta',
-  ).length
+  const readyProductsCount = useMemo(
+    () =>
+      products.filter((product) => product.fulfillmentType === 'entrega-pronta')
+        .length,
+    [products],
+  )
 
   const categoryCounts = useMemo(() => {
     return categories.reduce<Record<string, number>>((accumulator, category) => {
@@ -214,6 +217,10 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     selectedCategoryId === 'todos' ? 'Cardápio completo' : activeCategory?.name
   const confirmingProduct =
     products.find((product) => product.id === confirmingProductId) ?? null
+  const confirmingExtraGroups = useMemo(
+    () => (confirmingProduct ? getProductExtraGroups(confirmingProduct) : []),
+    [confirmingProduct],
+  )
 
   return (
     <main id="cardapio" className="menu-app">
@@ -320,6 +327,8 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                         src={product.imageSrc}
                         alt={product.name}
                         className="menu-card-image"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <span className="menu-card-placeholder">sem foto</span>
@@ -414,6 +423,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                   src={confirmingProduct.imageSrc}
                   alt={confirmingProduct.name}
                   className="product-confirmation-image"
+                  decoding="async"
                 />
               ) : (
                 <div className="product-confirmation-placeholder">
@@ -495,7 +505,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
 
               {confirmingProduct.extras?.length ? (
                 <div className="menu-extraGroups">
-                  {getProductExtraGroups(confirmingProduct).map((group) => {
+                  {confirmingExtraGroups.map((group) => {
                     const selected = selectedExtras[confirmingProduct.id] ?? []
                     const selectedCount = selected.filter((id) =>
                       group.extraIds.includes(id),

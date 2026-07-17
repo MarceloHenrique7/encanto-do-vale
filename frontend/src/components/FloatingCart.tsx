@@ -274,6 +274,30 @@ export default function FloatingCart({
   const whatsappWindowRef = useRef<Window | null>(null)
   const storeHours = getStoreHoursStatus()
 
+  useEffect(() => {
+    if (!isOpen) return
+
+    const bodyOverflow = document.body.style.overflow
+    const documentOverflow = document.documentElement.style.overflow
+    const documentOverscroll = document.documentElement.style.overscrollBehavior
+
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.documentElement.style.overscrollBehavior = 'none'
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = bodyOverflow
+      document.documentElement.style.overflow = documentOverflow
+      document.documentElement.style.overscrollBehavior = documentOverscroll
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isOpen, onClose])
+
   const prepareWhatsappWindow = useCallback(() => {
     const currentWindow = whatsappWindowRef.current
     if (currentWindow && !currentWindow.closed) return

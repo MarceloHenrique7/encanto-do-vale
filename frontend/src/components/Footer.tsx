@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="footer-main">
         <div>
           <span className="footer-brand">
-            <img src={storeConfig.logoUrl} alt="" />
+            <img src={storeConfig.logoUrl} alt="" loading="lazy" decoding="async" />
           </span>
           <strong>{storeConfig.name}</strong>
           <p>{storeConfig.serviceSummary}</p>

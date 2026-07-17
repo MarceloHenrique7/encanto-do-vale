@@ -14,7 +14,9 @@ export default function StoreHero({ imageSrc }: StoreHeroProps) {
   return (
     <section className="store-hero" aria-labelledby="store-title">
       <div className="store-hero__cover">
-        {imageSrc ? <img src={imageSrc} alt="" /> : null}
+        {imageSrc ? (
+          <img src={imageSrc} alt="" decoding="async" fetchPriority="high" />
+        ) : null}
         <div className="store-hero__coverShade" />
         <div className="store-hero__coverCopy">
           <span>Confeitaria artesanal</span>
@@ -24,7 +26,7 @@ export default function StoreHero({ imageSrc }: StoreHeroProps) {
 
       <div className="store-hero__identity">
         <div className="store-hero__logo" aria-hidden="true">
-          <img src={storeConfig.logoUrl} alt="" />
+          <img src={storeConfig.logoUrl} alt="" decoding="async" />
         </div>
         <div className="store-hero__details">
           <h1 id="store-title">{storeConfig.name}</h1>
