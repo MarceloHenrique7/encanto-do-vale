@@ -406,10 +406,11 @@ test('cadastra e autentica automaticamente ao entrar com telefone novo', async (
 
   const login = await customer.post('/api/auth/login/phone').send({
     phone: '(87) 98802-8111',
+    name: 'Marcelo salvo anteriormente',
   })
   assert.equal(login.status, 200)
   assert.equal(login.body.authenticated, true)
-  assert.equal(login.body.user.name, 'Cliente')
+  assert.equal(login.body.user.name, '(sem nome)')
   assert.equal(login.body.user.phone, '+5587988028111')
 
   const session = await customer.get('/api/auth/session')

@@ -172,9 +172,8 @@ export async function postPhoneLogin(request, response) {
 
   let user = await findUserByPhone(phone)
   if (!user?.verified) {
-    const informedName = sanitizeText(request.body?.name, 80)
     user = await upsertVerifiedUser({
-      name: user?.name || informedName || 'Cliente',
+      name: user?.name || '(sem nome)',
       phone,
     })
   }

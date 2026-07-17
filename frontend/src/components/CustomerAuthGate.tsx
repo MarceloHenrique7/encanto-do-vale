@@ -113,11 +113,10 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
     setSubmitting(true)
     setError('')
     try {
-      const draft = loadGuestCustomer()
       const response = await fetch('/api/auth/login/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: loginPhone, name: draft.name }),
+        body: JSON.stringify({ phone: loginPhone }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
