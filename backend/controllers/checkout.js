@@ -118,11 +118,12 @@ export async function postOrder(request, response) {
   }
 
   const now = new Date().toISOString()
-  const paymentMethod = ['cash-delivery', 'card-delivery'].includes(
-    body.payment_method,
-  )
-    ? body.payment_method
-    : 'online'
+  const paymentMethod = body.payment_method ?? 'online'
+  if (!['online', 'card-delivery'].includes(paymentMethod)) {
+    return response.status(400).json({
+      error: 'Esta forma de pagamento nao esta disponivel.',
+    })
+  }
   if (normalized.deliveryMethod === 'delivery') {
     customer.neighborhood = normalized.neighborhood
   }

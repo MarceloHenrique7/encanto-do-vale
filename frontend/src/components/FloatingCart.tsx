@@ -37,7 +37,7 @@ type FloatingCartProps = {
   onCustomerAccount: (user: CustomerUser) => void
 }
 
-type PaymentMethod = 'online' | 'cash-delivery' | 'card-delivery'
+type PaymentMethod = 'online' | 'card-delivery'
 
 type PaymentResult = {
   payment_id?: string | number
@@ -77,7 +77,6 @@ type DeliveryQuote = {
 
 const paymentLabels: Record<PaymentMethod, string> = {
   online: 'Pix ou cartão online',
-  'cash-delivery': 'Dinheiro na entrega',
   'card-delivery': 'Cartão na entrega',
 }
 

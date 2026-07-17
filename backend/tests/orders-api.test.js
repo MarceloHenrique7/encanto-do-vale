@@ -141,6 +141,26 @@ test('exige os campos de entrega e bloqueia origem CORS diferente', async () => 
   assert.equal(forbiddenOrigin.status, 403)
 })
 
+test('nao aceita pagamento em dinheiro na entrega', async () => {
+  const app = createApp()
+  const customer = await authenticatedCustomer(app, '03')
+  const creation = await customer.post('/api/orders').send({
+    customer: {
+      name: 'Maria',
+      phone: '75999999999',
+      address: 'Rua Teste',
+      number: '20',
+      neighborhood: 'Centro',
+    },
+    delivery_method: 'delivery',
+    payment_method: 'cash-delivery',
+    items: [{ id: 'bolo-de-pote-kitkat-supreme', quantity: 2 }],
+  })
+
+  assert.equal(creation.status, 400)
+  assert.match(creation.body.error, /nao esta disponivel/)
+})
+
 test('mapeia status do Mercado Pago para o pedido interno', () => {
   assert.equal(mapPaymentStatus('approved'), 'paid')
   assert.equal(mapPaymentStatus('pending'), 'waiting_payment')
