@@ -245,6 +245,13 @@ function normalizeOrderWithCatalog(catalog, body, { requireEmail = true } = {}) 
         id: sanitizeText(item.id, 80),
         title: sanitizeText(title, 120),
         description: sanitizeText(product.description, 240),
+        imageSrc: sanitizeText(product.imageSrc, 1_000),
+        optionLabel: option ? sanitizeText(option.label, 80) : '',
+        extras: selectedExtras.map((extra) => ({
+          id: sanitizeText(extra.id, 80),
+          name: sanitizeText(extra.label, 120),
+          price: fromCents(toCents(extra.price)),
+        })),
         quantity: Math.min(
           99,
           Math.max(1, Number.parseInt(item.quantity, 10) || 1),

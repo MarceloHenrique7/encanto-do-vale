@@ -152,6 +152,9 @@ export async function postOrder(request, response) {
     items: normalized.checkoutItems.map((item) => ({
       id: item.id,
       name: item.title,
+      image_src: item.imageSrc,
+      option_label: item.optionLabel || undefined,
+      extras: item.extras,
       quantity: item.quantity,
       unit_price: item.unitPrice,
     })),

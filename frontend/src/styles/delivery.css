@@ -545,11 +545,68 @@ body .cart-backdrop {
   border-block: 1px solid #eee;
 }
 
-.order-summaryItems > div,
 .order-summaryPrices > div {
   display: flex;
   justify-content: space-between;
   gap: 18px;
+}
+
+.order-summaryItem {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.order-summaryItemImage,
+.manager-orderItemImage {
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f1ece8;
+  color: #513321;
+  font: 800 20px/1 'Fraunces', Georgia, serif;
+}
+
+.order-summaryItemImage {
+  width: 64px;
+  height: 64px;
+}
+
+.order-summaryItemImage img,
+.manager-orderItemImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.order-summaryItemInfo {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.order-itemExtras,
+.manager-orderItemInfo ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  color: #717171;
+  font-size: 12px;
+  list-style: none;
+}
+
+.order-itemExtras li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.order-itemExtras small {
+  color: #858585;
 }
 
 .order-summaryItems span {
@@ -913,13 +970,42 @@ body .cart-backdrop {
   padding: 20px;
 }
 
-.manager-orderItems > div {
+.manager-orderItem {
   display: grid;
-  grid-template-columns: 32px 1fr;
+  grid-template-columns: 58px 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.manager-orderItemImage {
+  width: 58px;
+  height: 58px;
 }
 
 .manager-orderItems strong {
   color: #513321;
+}
+
+.manager-orderItemInfo {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.manager-orderItemInfo > span {
+  font-weight: 700;
+}
+
+.manager-orderItemPrice {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  white-space: nowrap;
+}
+
+.manager-orderItemPrice small {
+  color: #858585;
+  font-size: 10px;
 }
 
 .manager-orderNotes {
@@ -1025,8 +1111,14 @@ body .cart-backdrop {
 }
 
 @media (max-width: 520px) {
+  .order-summaryItem { grid-template-columns: 54px minmax(0, 1fr); }
+  .order-summaryItemImage { width: 54px; height: 54px; }
+  .order-summaryItem > strong { grid-column: 2; }
   .manager-logo > div:last-child { display: none; }
   .manager-headerActions button { padding: 8px; font-size: 11px; }
+  .manager-orderItem { grid-template-columns: 50px 28px minmax(0, 1fr); }
+  .manager-orderItemImage { width: 50px; height: 50px; }
+  .manager-orderItemPrice { grid-column: 3; justify-items: start; }
   .manager-orderFooter { align-items: flex-start; flex-direction: column; }
   .manager-orderFooter > div { width: 100%; }
   .manager-orderFooter button { flex: 1; }

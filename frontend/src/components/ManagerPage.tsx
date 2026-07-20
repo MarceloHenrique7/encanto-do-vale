@@ -29,6 +29,13 @@ type ManagerOrder = {
   items: Array<{
     id: string
     name: string
+    image_src?: string
+    option_label?: string
+    extras?: Array<{
+      id: string
+      name: string
+      price: number
+    }>
     quantity: number
     unit_price: number
   }>
@@ -618,10 +625,34 @@ export default function ManagerPage() {
                     </div>
                   </div>
                   <div className="manager-orderItems">
-                    {order.items.map((item) => (
-                      <div key={item.id}>
+                    {order.items.map((item, index) => (
+                      <div className="manager-orderItem" key={`${item.id}-${index}`}>
+                        <div className="manager-orderItemImage">
+                          {item.image_src ? (
+                            <img src={item.image_src} alt={item.name} loading="lazy" />
+                          ) : (
+                            <span aria-hidden="true">E</span>
+                          )}
+                        </div>
                         <strong>{item.quantity}×</strong>
-                        <span>{item.name}</span>
+                        <div className="manager-orderItemInfo">
+                          <span>{item.name}</span>
+                          {item.extras?.length ? (
+                            <ul aria-label="Adicionais">
+                              {item.extras.map((extra) => (
+                                <li key={extra.id}>
+                                  + {extra.name} ({formatCurrency(extra.price)} cada)
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                        <div className="manager-orderItemPrice">
+                          <strong>{formatCurrency(item.unit_price * item.quantity)}</strong>
+                          {item.quantity > 1 ? (
+                            <small>{formatCurrency(item.unit_price)} cada</small>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                   </div>

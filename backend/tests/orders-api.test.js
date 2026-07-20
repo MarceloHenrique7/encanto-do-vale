@@ -80,7 +80,8 @@ test('cria e consulta pedido recalculando os valores no servidor', async () => {
           id: 'bolo-de-pote-kitkat-supreme',
           name: 'Nome adulterado',
           quantity: 2,
-          unit_price: 14.99,
+          extraIds: ['leite-condensado'],
+          unit_price: 16.99,
         },
       ],
       delivery_fee: 0.01,
@@ -89,7 +90,7 @@ test('cria e consulta pedido recalculando os valores no servidor', async () => {
     })
 
   assert.equal(creation.status, 201)
-  assert.equal(creation.body.total, 41.47)
+  assert.equal(creation.body.total, 45.47)
   assert.match(creation.body.order_id, /^[0-9a-f-]{36}$/)
 
   const lookup = await customer.get(
@@ -98,7 +99,15 @@ test('cria e consulta pedido recalculando os valores no servidor', async () => {
   assert.equal(lookup.status, 200)
   assert.equal(lookup.body.status, 'pending')
   assert.equal(lookup.body.items[0].name, 'Bolo de Pote Kitkat Supreme')
-  assert.equal(lookup.body.subtotal, 29.98)
+  assert.match(lookup.body.items[0].image_src, /^https:\/\//)
+  assert.deepEqual(lookup.body.items[0].extras, [
+    {
+      id: 'leite-condensado',
+      name: 'Calda de leite condensado',
+      price: 2,
+    },
+  ])
+  assert.equal(lookup.body.subtotal, 33.98)
   assert.equal(lookup.body.delivery_fee, 11.49)
   assert.equal(lookup.body.neighborhood, 'Centro')
   assert.equal(lookup.body.distanceKm, 7)

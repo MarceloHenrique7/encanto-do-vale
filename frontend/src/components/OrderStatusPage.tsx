@@ -37,6 +37,13 @@ type Order = {
   items: Array<{
     id: string
     name: string
+    image_src?: string
+    option_label?: string
+    extras?: Array<{
+      id: string
+      name: string
+      price: number
+    }>
     quantity: number
     unit_price: number
   }>
@@ -300,9 +307,28 @@ export default function OrderStatusPage({ orderId }: { orderId: string }) {
           </div>
 
           <div className="order-summaryItems">
-            {order.items.map((item) => (
-              <div key={item.id}>
-                <span><b>{item.quantity}x</b> {item.name}</span>
+            {order.items.map((item, index) => (
+              <div className="order-summaryItem" key={`${item.id}-${index}`}>
+                <div className="order-summaryItemImage">
+                  {item.image_src ? (
+                    <img src={item.image_src} alt={item.name} loading="lazy" />
+                  ) : (
+                    <span aria-hidden="true">E</span>
+                  )}
+                </div>
+                <div className="order-summaryItemInfo">
+                  <span><b>{item.quantity}x</b> {item.name}</span>
+                  {item.extras?.length ? (
+                    <ul className="order-itemExtras" aria-label="Adicionais">
+                      {item.extras.map((extra) => (
+                        <li key={extra.id}>
+                          <span>+ {extra.name}</span>
+                          <small>{formatCurrency(extra.price)} cada</small>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
                 <strong>{formatCurrency(item.unit_price * item.quantity)}</strong>
               </div>
             ))}
