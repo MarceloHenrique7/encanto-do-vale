@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 
 import { useCatalogCategories } from '@/features/catalog/catalogStore'
-import { formatCurrency, normalizeSearchText, truncateText } from '@/lib/formatters'
+import { formatCurrency, truncateText } from '@/lib/formatters'
+import { trackMetaEvent } from '@/lib/metaPixel'
 import type { Product } from '@/domain/catalog'
-import { FiPlus, FiSearch, FiSliders } from 'react-icons/fi'
+import { FiPlus } from 'react-icons/fi'
 
 type CardapioProps = {
   products: Product[]
@@ -15,23 +16,9 @@ type CardapioProps = {
   ) => boolean
 }
 
-type FulfillmentFilter = 'todos' | 'encomenda' | 'entrega-pronta'
-type PriceOrder = 'default' | 'asc' | 'desc'
-
-const fulfillmentLabels: Record<FulfillmentFilter, string> = {
-  todos: 'Todos',
-  encomenda: 'Encomenda',
-  'entrega-pronta': 'Pronta entrega',
-}
-
 export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   const categories = useCatalogCategories()
   const [selectedCategoryId, setSelectedCategoryId] = useState('todos')
-  const [selectedFulfillment, setSelectedFulfillment] =
-    useState<FulfillmentFilter>('todos')
-  const [selectedPriceOrder, setSelectedPriceOrder] =
-    useState<PriceOrder>('default')
-  const [searchTerm, setSearchTerm] = useState('')
   const [selectedOptionIds, setSelectedOptionIds] = useState<Record<string, string>>({})
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
   const [confirmingProductId, setConfirmingProductId] = useState<string | null>(null)
@@ -144,19 +131,20 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     setCartError('')
   }
 
-  function resetFilters() {
-    setSelectedCategoryId('todos')
-    setSelectedFulfillment('todos')
-    setSelectedPriceOrder('default')
-    setSearchTerm('')
+  function openConfirmation(product: Product) {
+    setConfirmingProductId(product.id)
+    trackMetaEvent('ViewContent', {
+      content_ids: [product.id],
+      content_name: product.name,
+      content_type: 'product',
+      currency: 'BRL',
+      value: product.basePrice,
+    })
   }
 
-  const readyProductsCount = useMemo(
-    () =>
-      products.filter((product) => product.fulfillmentType === 'entrega-pronta')
-        .length,
-    [products],
-  )
+  function resetFilters() {
+    setSelectedCategoryId('todos')
+  }
 
   const categoryCounts = useMemo(() => {
     return categories.reduce<Record<string, number>>((accumulator, category) => {
@@ -172,47 +160,15 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     }, {})
   }, [categories, products])
 
-  const filteredProducts = useMemo(() => {
-    const normalizedSearch = normalizeSearchText(searchTerm.trim())
-
-    const filtered = products.filter((product) => {
-      const matchesFulfillment =
-        selectedFulfillment === 'todos' ||
-        product.fulfillmentType === selectedFulfillment
-
-      const matchesSearch =
-        !normalizedSearch ||
-        normalizeSearchText(
-          `${product.name} ${product.description} ${product.primaryCategoryLabel}`,
-        ).includes(normalizedSearch)
-
-      return matchesFulfillment && matchesSearch
-    })
-
-    if (selectedPriceOrder === 'asc') {
-      return [...filtered].sort(
-        (first, second) => first.basePrice - second.basePrice,
-      )
-    }
-
-    if (selectedPriceOrder === 'desc') {
-      return [...filtered].sort(
-        (first, second) => second.basePrice - first.basePrice,
-      )
-    }
-
-    return filtered
-  }, [products, searchTerm, selectedFulfillment, selectedPriceOrder])
-
   const visibleProducts = useMemo(() => {
-    if (selectedCategoryId === 'todos') return filteredProducts
+    if (selectedCategoryId === 'todos') return products
     if (selectedCategoryId === 'destaques') {
-      return filteredProducts.filter((product) => product.isFeatured)
+      return products.filter((product) => product.isFeatured)
     }
-    return filteredProducts.filter((product) =>
+    return products.filter((product) =>
       product.categoryIds.includes(selectedCategoryId),
     )
-  }, [filteredProducts, selectedCategoryId])
+  }, [products, selectedCategoryId])
 
   const productSections = useMemo(() => {
     if (selectedCategoryId !== 'todos') {
@@ -232,7 +188,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     const assignedProductIds = new Set<string>()
     const sections = categories.flatMap((category) => {
       if (category.id === 'destaques') return []
-      const categoryProducts = filteredProducts.filter(
+      const categoryProducts = products.filter(
         (product) =>
           !assignedProductIds.has(product.id) &&
           product.categoryIds.includes(category.id),
@@ -247,7 +203,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
       }]
     })
 
-    const uncategorizedProducts = filteredProducts.filter(
+    const uncategorizedProducts = products.filter(
       (product) => !assignedProductIds.has(product.id),
     )
     if (uncategorizedProducts.length) {
@@ -259,13 +215,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
       })
     }
     return sections
-  }, [categories, filteredProducts, selectedCategoryId, visibleProducts])
-
-  const activeCategory = categories.find(
-    (category) => category.id === selectedCategoryId,
-  )
-  const activeCategoryName =
-    selectedCategoryId === 'todos' ? 'Cardápio completo' : activeCategory?.name
+  }, [categories, products, selectedCategoryId, visibleProducts])
   const confirmingProduct =
     products.find((product) => product.id === confirmingProductId) ?? null
   const confirmingExtraGroups = useMemo(
@@ -280,49 +230,6 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
           <div><span>Nosso cardápio</span><h1>O que você deseja pedir?</h1></div>
           <p>{products.length} opções entre doces, bolos, sobremesas e presentes.</p>
         </div>
-        <div className="menu-toolbar">
-          <label className="menu-search">
-            <span>Buscar no cardápio</span>
-            <div className="menu-search-control"><FiSearch /><input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="O que você deseja hoje?"
-                type="search"
-              /></div>
-          </label>
-
-          <div className="menu-selects">
-            <span className="filter-label"><FiSliders /> Filtros</span>
-            <label className="menu-filterField">
-              <span>Atendimento</span>
-              <select
-                value={selectedFulfillment}
-                onChange={(event) =>
-                  setSelectedFulfillment(event.target.value as FulfillmentFilter)
-                }
-              >
-                <option value="todos">Todos</option>
-                <option value="encomenda">Encomenda</option>
-                <option value="entrega-pronta">Pronta entrega</option>
-              </select>
-            </label>
-
-            <label className="menu-filterField">
-              <span>Preço</span>
-              <select
-                value={selectedPriceOrder}
-                onChange={(event) =>
-                  setSelectedPriceOrder(event.target.value as PriceOrder)
-                }
-              >
-                <option value="default">Padrão</option>
-                <option value="asc">Menor preço</option>
-                <option value="desc">Maior preço</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
         <div className="menu-categoryRail" aria-label="Categorias do cardápio">
           <button
             type="button"
@@ -346,18 +253,6 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
               <small>{categoryCounts[category.id] ?? 0}</small>
             </button>
           ))}
-        </div>
-
-        <div className="menu-resultsHeader">
-          <div>
-            <span className="menu-panel-label">Categoria</span>
-            <h2>{activeCategoryName}</h2>
-          </div>
-          <div className="menu-resultsMeta">
-            <span>{visibleProducts.length} itens</span>
-            <span>{fulfillmentLabels[selectedFulfillment]}</span>
-            <span>{readyProductsCount} pronta entrega</span>
-          </div>
         </div>
 
         {visibleProducts.length ? (
@@ -388,7 +283,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                 <button
                   type="button"
                   className="menu-card-open"
-                  onClick={() => setConfirmingProductId(product.id)}
+                  onClick={() => openConfirmation(product)}
                 >
                   <span className="menu-card-imageWrap">
                     {product.imageSrc ? (
@@ -464,11 +359,10 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
           <div className="menu-emptyState">
             <strong>Nenhum produto encontrado.</strong>
             <p>
-              Tente limpar a busca ou escolher outra categoria para ver mais
-              opcoes do cardapio.
+              Escolha outra categoria para ver mais opcoes do cardapio.
             </p>
             <button type="button" onClick={resetFilters}>
-              Limpar filtros
+              Ver todas as categorias
             </button>
           </div>
         )}
@@ -709,6 +603,21 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                         )
                         return
                       }
+
+                      trackMetaEvent('AddToCart', {
+                        content_ids: [confirmingProduct.id],
+                        content_name: confirmingProduct.name,
+                        content_type: 'product',
+                        contents: [{
+                          id: confirmingProduct.id,
+                          quantity: getSelectedQuantity(confirmingProduct.id),
+                          item_price: getUnitPrice(confirmingProduct),
+                        }],
+                        currency: 'BRL',
+                        value:
+                          getUnitPrice(confirmingProduct) *
+                          getSelectedQuantity(confirmingProduct.id),
+                      })
 
                       setSelectedExtras((current) => ({
                         ...current,

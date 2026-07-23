@@ -57,6 +57,17 @@ export default function PrivacyPage() {
         </section>
 
         <section className="privacy-section">
+          <h2>Medicao de anuncios</h2>
+          <p>
+            Quando configurado, o site usa o Pixel da Meta para medir visitas,
+            interacoes com produtos, inicio do checkout e compras. A Meta pode
+            associar esses eventos a anuncios e usar cookies ou tecnologias
+            semelhantes conforme as configuracoes do navegador e da conta do
+            visitante. Dados completos de cartao nao sao enviados ao Pixel.
+          </p>
+        </section>
+
+        <section className="privacy-section">
           <h2>Seus direitos</h2>
           <p>
             Voce pode pedir acesso, correcao ou remocao dos seus dados de

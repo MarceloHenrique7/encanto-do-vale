@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { storeConfig } from '@/config/store'
 import { formatCurrency } from '@/lib/formatters'
+import { trackMetaPurchaseOnce } from '@/lib/metaPixel'
 
 type RestaurantStatus =
   | 'awaiting_payment'
@@ -204,6 +205,33 @@ export default function OrderStatusPage({ orderId }: { orderId: string }) {
     if (!order) return null
     const state = resolveTrackingState(order)
     return { state, copy: trackingCopy[state] }
+  }, [order])
+
+  useEffect(() => {
+    if (!order) return
+
+    const isOnlinePurchase =
+      order.payment_method === 'online' && order.status === 'paid'
+    const isDeliveryPurchase =
+      (order.payment_method === 'cash-delivery' ||
+        order.payment_method === 'card-delivery') &&
+      order.restaurant_status !== 'cancelled'
+
+    if (!isOnlinePurchase && !isDeliveryPurchase) return
+
+    trackMetaPurchaseOnce(order.order_id, {
+      content_ids: order.items.map((item) => item.id),
+      content_type: 'product',
+      contents: order.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        item_price: item.unit_price,
+      })),
+      currency: 'BRL',
+      num_items: order.items.reduce((total, item) => total + item.quantity, 0),
+      order_id: order.order_id,
+      value: order.total,
+    })
   }, [order])
 
   if (loading && !order) {

@@ -45,6 +45,7 @@ MERCADO_PAGO_PUBLIC_KEY=
 MERCADO_PAGO_ACCESS_TOKEN=
 BACKEND_URL=http://localhost:3000
 FRONTEND_URL=http://localhost:5173
+VITE_META_PIXEL_ID=
 ADMIN_PASSWORD=uma-senha-forte
 SESSION_SECRET=uma-chave-aleatoria-com-pelo-menos-24-caracteres
 TWILIO_ACCOUNT_SID=
@@ -55,6 +56,12 @@ TWILIO_VERIFY_SERVICE_SID=
 `MERCADO_PAGO_PUBLIC_KEY` é incorporada ao bundle público pelo Vite. Isso é
 esperado. `MERCADO_PAGO_ACCESS_TOKEN` é lida apenas pelo backend e nunca deve
 usar o prefixo `VITE_`.
+
+Para medir campanhas da Meta, informe em `VITE_META_PIXEL_ID` somente o ID
+numerico exibido no Gerenciador de Eventos. Quando configurado, a vitrine envia
+`PageView`, `ViewContent`, `AddToCart`, `InitiateCheckout` e `Purchase`. O evento
+de compra usa o ID do pedido para evitar contagem duplicada ao recarregar a
+pagina ou aguardar a confirmacao do Pix.
 
 Inicie frontend e backend juntos:
 

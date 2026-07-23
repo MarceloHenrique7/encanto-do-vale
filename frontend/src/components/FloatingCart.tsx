@@ -15,6 +15,7 @@ import {
 } from '@/components/CustomerAuthGate'
 import { fromCents, toCents, type ResolvedCartItem } from '@/domain/cart'
 import { formatCurrency } from '@/lib/formatters'
+import { trackMetaEvent, trackMetaPurchaseOnce } from '@/lib/metaPixel'
 import { getStoreHoursStatus } from '@/lib/storeHours'
 import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
@@ -381,6 +382,18 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
 
     try {
       validateCheckout(requireEmail)
+      trackMetaEvent('InitiateCheckout', {
+        content_ids: resolvedItems.map((item) => item.id),
+        content_type: 'product',
+        contents: resolvedItems.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          item_price: item.unitPrice,
+        })),
+        currency: 'BRL',
+        num_items: count,
+        value: estimatedTotal,
+      })
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -436,6 +449,19 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
       total: data.total,
       fingerprint,
     })
+    trackMetaPurchaseOnce(data.order_id, {
+      content_ids: resolvedItems.map((item) => item.id),
+      content_type: 'product',
+      contents: resolvedItems.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        item_price: item.unitPrice,
+      })),
+      currency: 'BRL',
+      num_items: count,
+      order_id: data.order_id,
+      value: data.total,
+    })
     setMessage(
       'Pedido registrado com sucesso! Escolha abaixo como deseja acompanhar.',
     )
@@ -457,6 +483,19 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
 
     setPaymentResult(result)
     if (result.status === 'approved') {
+      trackMetaPurchaseOnce(result.order_id, {
+        content_ids: resolvedItems.map((item) => item.id),
+        content_type: 'product',
+        contents: resolvedItems.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          item_price: item.unitPrice,
+        })),
+        currency: 'BRL',
+        num_items: count,
+        order_id: result.order_id,
+        value: activeSession?.total ?? estimatedTotal,
+      })
       setCheckoutState('success')
       setMessage('Pagamento aprovado! Seu pedido já foi confirmado.')
       window.location.assign(`/pedido/${result.order_id}`)
