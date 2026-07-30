@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -73,6 +73,7 @@ import {
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const staticDirectory = path.resolve(serviceDirectory, '../dist')
 const indexFile = path.join(staticDirectory, 'index.html')
+const indexHtml = existsSync(indexFile) ? readFileSync(indexFile, 'utf8') : ''
 
 export function createApp() {
   const app = express()
@@ -83,6 +84,8 @@ export function createApp() {
       frontendUrl,
       process.env.BACKEND_URL,
       process.env.RENDER_EXTERNAL_URL,
+      'https://encantodovalepnz.com',
+      'https://www.encantodovalepnz.com',
       'https://encanto-do-vale.onrender.com',
     ]
       .filter(Boolean)
@@ -192,10 +195,10 @@ export function createApp() {
   app.delete('/api/admin/loyalty/rewards/:id', requireAdmin, removeAdminReward)
   app.post('/api/admin/loyalty/adjustments', requireAdmin, postAdminPointsAdjustment)
 
-  if (existsSync(indexFile)) {
+  if (indexHtml) {
     app.get(/^(?!\/api\/).*/, (_request, response) => {
       response.setHeader('Cache-Control', 'no-cache')
-      response.sendFile(indexFile)
+      response.type('html').send(indexHtml)
     })
   }
 
@@ -207,7 +210,11 @@ export function createApp() {
       return response.status(403).json({ error: error.message })
     }
 
-    console.error('Erro não tratado na API', { message: error?.message })
+    console.error('Erro não tratado na API', {
+      message: error?.message,
+      code: error?.code,
+      path: error?.path,
+    })
     return response.status(500).json({ error: 'Erro interno do servidor.' })
   })
 
