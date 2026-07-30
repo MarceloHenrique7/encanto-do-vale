@@ -4,13 +4,16 @@ import { sanitizeText, toMoney } from '../api/_payment-utils.js'
 import {
   createCategory,
   createExtra,
+  createPromotion,
   createProduct,
   deleteCategory,
   deleteExtra,
+  deletePromotion,
   deleteProduct,
   getCatalog,
   updateCategory,
   updateExtra,
+  updatePromotion,
   updateProduct,
 } from '../services/catalog-store.js'
 
@@ -60,6 +63,29 @@ function normalizeExtra(value) {
   const [extra] = normalizePricedEntries([value], 'extra')
   if (!extra) return { error: 'Informe um nome e um preço válido para o complemento.' }
   return { extra }
+}
+
+function normalizePromotion(value) {
+  const title = sanitizeText(value?.title, 100)
+  const productId = slug(value?.productId)
+  if (!title) return { error: 'Informe o título do card promocional.' }
+  if (!productId) return { error: 'Selecione um produto para a promoção.' }
+  const tone = ['dark', 'rose', 'cream'].includes(value?.tone)
+    ? value.tone
+    : 'dark'
+  return {
+    promotion: {
+      id: slug(value?.id || title),
+      eyebrow: sanitizeText(value?.eyebrow, 40) || 'Oferta especial',
+      title,
+      subtitle: sanitizeText(value?.subtitle, 180),
+      ctaLabel: sanitizeText(value?.ctaLabel, 40) || 'Ver oferta',
+      imageSrc: sanitizeText(value?.imageSrc, 1_000),
+      productId,
+      tone,
+      isActive: value?.isActive !== false,
+    },
+  }
 }
 
 function normalizeExtraGroups(entries, extras) {
@@ -244,5 +270,39 @@ export async function removeAdminCategory(request, response) {
     return response.status(409).json({ error: 'Remova esta categoria dos produtos antes de excluí-la.' })
   }
   if (!result) return response.status(404).json({ error: 'Categoria não encontrada.' })
+  return response.status(204).end()
+}
+
+export async function postAdminPromotion(request, response) {
+  const normalized = normalizePromotion(request.body)
+  if (normalized.error) return response.status(400).json({ error: normalized.error })
+  const catalog = await getCatalog()
+  if (!catalog.products.some((product) => product.id === normalized.promotion.productId)) {
+    return response.status(400).json({ error: 'Selecione um produto existente.' })
+  }
+  const promotion = await createPromotion(normalized.promotion)
+  if (!promotion) return response.status(409).json({ error: 'Já existe uma promoção com este ID.' })
+  return response.status(201).json({ promotion })
+}
+
+export async function putAdminPromotion(request, response) {
+  const normalized = normalizePromotion(request.body)
+  if (normalized.error) return response.status(400).json({ error: normalized.error })
+  const catalog = await getCatalog()
+  if (!catalog.products.some((product) => product.id === normalized.promotion.productId)) {
+    return response.status(400).json({ error: 'Selecione um produto existente.' })
+  }
+  const result = await updatePromotion(
+    sanitizeText(request.params.id, 80),
+    normalized.promotion,
+  )
+  if (result === false) return response.status(409).json({ error: 'O novo ID já está em uso.' })
+  if (!result) return response.status(404).json({ error: 'Promoção não encontrada.' })
+  return response.json({ promotion: result })
+}
+
+export async function removeAdminPromotion(request, response) {
+  const deleted = await deletePromotion(sanitizeText(request.params.id, 80))
+  if (!deleted) return response.status(404).json({ error: 'Promoção não encontrada.' })
   return response.status(204).end()
 }

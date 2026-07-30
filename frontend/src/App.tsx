@@ -8,7 +8,6 @@ import CustomerAuthGate, {
 import FloatingCart from '@/components/FloatingCart'
 import Footer from '@/components/Footer'
 import Header from '@/components/Header'
-import StoreHero from '@/components/StoreHero'
 import { storeConfig } from '@/config/store'
 import { useCatalogProducts } from '@/features/catalog/catalogStore'
 import { useCart } from '@/hooks/useCart'
@@ -102,9 +101,6 @@ function StoreExperience({
           if (user) setProfileOpen(true)
           else onLoginRequest()
         }}
-      />
-      <StoreHero
-        imageSrc={availableProducts.find((product) => product.isFeatured)?.imageSrc}
       />
       {checkoutStatus ? (
         <section

@@ -116,6 +116,7 @@ export default function FloatingCart({
     complement: '',
   })
   const [notes, setNotes] = useState('')
+  const [rewardCode, setRewardCode] = useState('')
   const [session, setSession] = useState<CheckoutSession | null>(null)
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null)
   const [checkoutState, setCheckoutState] = useState<
@@ -286,6 +287,7 @@ export default function FloatingCart({
       subtotal,
       total: estimatedTotal,
       notes,
+      reward_code: rewardCode.trim().toUpperCase(),
     }),
     [
       customer,
@@ -294,6 +296,7 @@ export default function FloatingCart({
       estimatedTotal,
       notes,
       paymentMethod,
+      rewardCode,
       resolvedItems,
       subtotal,
     ],
@@ -841,6 +844,22 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                   </p>
                   </div>
                 </section>
+                {customerAccount ? (
+                  <section className="cart-formSection cart-loyaltyCode">
+                    <div className="cart-formSectionHeading">
+                      <span>03</span>
+                      <div><strong>Recompensa</strong><small>Use um código resgatado em Meus Pontos.</small></div>
+                    </div>
+                    <label>
+                      <span>Código do resgate</span>
+                      <input
+                        value={rewardCode}
+                        onChange={(event) => setRewardCode(event.target.value.toUpperCase())}
+                        placeholder="DOCE-XXXXXXXX"
+                      />
+                    </label>
+                  </section>
+                ) : null}
               </div>
 
               <div className="cart-orderSummary">

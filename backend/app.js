@@ -40,12 +40,15 @@ import {
   postAdminCategory,
   postAdminExtra,
   postAdminProduct,
+  postAdminPromotion,
   putAdminCategory,
   putAdminExtra,
   putAdminProduct,
+  putAdminPromotion,
   removeAdminCategory,
   removeAdminExtra,
   removeAdminProduct,
+  removeAdminPromotion,
 } from './controllers/catalog.js'
 import {
   getDeliveryZones,
@@ -56,6 +59,16 @@ import {
   getPublicStoreSettings,
   putAdminStoreSettings,
 } from './controllers/settings.js'
+import {
+  getAdminPoints,
+  getCustomerPoints,
+  postAdminPointsAdjustment,
+  postAdminReward,
+  postCustomerRedemption,
+  putAdminPointsSettings,
+  putAdminReward,
+  removeAdminReward,
+} from './controllers/loyalty.js'
 
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const staticDirectory = path.resolve(serviceDirectory, '../dist')
@@ -147,6 +160,8 @@ export function createApp() {
   )
   app.get('/api/orders', requireCustomer, getCustomerOrders)
   app.get('/api/orders/:id', requireCustomer, getOrder)
+  app.get('/api/loyalty', requireCustomer, getCustomerPoints)
+  app.post('/api/loyalty/redemptions', requireCustomer, postCustomerRedemption)
   app.post('/api/process-payment', requireCustomer, postProcessPayment)
   app.post('/api/webhooks/mercadopago', postMercadoPagoWebhook)
   app.get('/api/admin/session', getAdminSession)
@@ -167,6 +182,15 @@ export function createApp() {
   app.post('/api/admin/categories', requireAdmin, postAdminCategory)
   app.put('/api/admin/categories/:id', requireAdmin, putAdminCategory)
   app.delete('/api/admin/categories/:id', requireAdmin, removeAdminCategory)
+  app.post('/api/admin/promotions', requireAdmin, postAdminPromotion)
+  app.put('/api/admin/promotions/:id', requireAdmin, putAdminPromotion)
+  app.delete('/api/admin/promotions/:id', requireAdmin, removeAdminPromotion)
+  app.get('/api/admin/loyalty', requireAdmin, getAdminPoints)
+  app.put('/api/admin/loyalty/settings', requireAdmin, putAdminPointsSettings)
+  app.post('/api/admin/loyalty/rewards', requireAdmin, postAdminReward)
+  app.put('/api/admin/loyalty/rewards/:id', requireAdmin, putAdminReward)
+  app.delete('/api/admin/loyalty/rewards/:id', requireAdmin, removeAdminReward)
+  app.post('/api/admin/loyalty/adjustments', requireAdmin, postAdminPointsAdjustment)
 
   if (existsSync(indexFile)) {
     app.get(/^(?!\/api\/).*/, (_request, response) => {

@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { useCatalogCategories } from '@/features/catalog/catalogStore'
+import {
+  useCatalogCategories,
+  useCatalogPromotions,
+} from '@/features/catalog/catalogStore'
 import { formatCurrency, truncateText } from '@/lib/formatters'
 import { trackMetaEvent } from '@/lib/metaPixel'
 import type { Product } from '@/domain/catalog'
-import { FiPlus } from 'react-icons/fi'
+import { FiArrowRight, FiPlus } from 'react-icons/fi'
 
 type CardapioProps = {
   products: Product[]
@@ -18,6 +21,7 @@ type CardapioProps = {
 
 export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   const categories = useCatalogCategories()
+  const promotions = useCatalogPromotions()
   const [selectedCategoryId, setSelectedCategoryId] = useState('todos')
   const [selectedOptionIds, setSelectedOptionIds] = useState<Record<string, string>>({})
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
@@ -160,6 +164,20 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     }, {})
   }, [categories, products])
 
+  const visibleCategories = useMemo(
+    () => categories.filter((category) => (categoryCounts[category.id] ?? 0) > 0),
+    [categories, categoryCounts],
+  )
+
+  useEffect(() => {
+    if (
+      selectedCategoryId !== 'todos' &&
+      !visibleCategories.some((category) => category.id === selectedCategoryId)
+    ) {
+      setSelectedCategoryId('todos')
+    }
+  }, [selectedCategoryId, visibleCategories])
+
   const visibleProducts = useMemo(() => {
     if (selectedCategoryId === 'todos') return products
     if (selectedCategoryId === 'destaques') {
@@ -222,6 +240,15 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
     () => (confirmingProduct ? getProductExtraGroups(confirmingProduct) : []),
     [confirmingProduct],
   )
+  const visiblePromotions = useMemo(
+    () => promotions.flatMap((promotion) => {
+      const product = products.find((item) => item.id === promotion.productId)
+      return promotion.isActive && product
+        ? [{ ...promotion, product }]
+        : []
+    }),
+    [products, promotions],
+  )
 
   return (
     <main id="cardapio" className="menu-app">
@@ -241,7 +268,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
             <small>{products.length}</small>
           </button>
 
-          {categories.map((category) => (
+          {visibleCategories.map((category) => (
             <button
               type="button"
               className={`menu-categoryChip${selectedCategoryId === category.id ? ' is-active' : ''}`}
@@ -254,6 +281,37 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
             </button>
           ))}
         </div>
+
+        {visiblePromotions.length ? (
+          <section className="menu-promotions" aria-label="Ofertas em destaque">
+            <div className="menu-promotionsHeading">
+              <div><span>Escolhas especiais</span><h2>Ofertas para pedir agora</h2></div>
+              <small>{visiblePromotions.length} destaque(s)</small>
+            </div>
+            <div className="menu-promotionRail">
+              {visiblePromotions.map((promotion) => (
+                <button
+                  type="button"
+                  className={`menu-promotionCard is-${promotion.tone}`}
+                  key={promotion.id}
+                  onClick={() => openConfirmation(promotion.product)}
+                >
+                  <span className="menu-promotionCopy">
+                    <small>{promotion.eyebrow}</small>
+                    <strong>{promotion.title}</strong>
+                    <span>{promotion.subtitle}</span>
+                    <b>{promotion.ctaLabel} <FiArrowRight /></b>
+                  </span>
+                  <span className="menu-promotionMedia">
+                    {(promotion.imageSrc || promotion.product.imageSrc) ? (
+                      <img src={promotion.imageSrc || promotion.product.imageSrc} alt="" />
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {visibleProducts.length ? (
           <div className="menu-categorySections">

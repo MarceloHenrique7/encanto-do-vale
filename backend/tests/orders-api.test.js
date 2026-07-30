@@ -24,8 +24,13 @@ const usersFile = path.join(
   os.tmpdir(),
   `encanto-users-test-${process.pid}.json`,
 )
+const loyaltyFile = path.join(
+  os.tmpdir(),
+  `encanto-loyalty-orders-test-${process.pid}.json`,
+)
 process.env.ORDERS_FILE = ordersFile
 process.env.USERS_FILE = usersFile
+process.env.LOYALTY_FILE = loyaltyFile
 process.env.FRONTEND_URL = 'http://localhost:5173'
 process.env.ADMIN_PASSWORD = 'senha-forte-de-teste'
 process.env.SESSION_SECRET = 'segredo-de-sessao-com-mais-de-24-caracteres'
@@ -38,6 +43,7 @@ test.beforeEach(async () => {
 test.after(async () => {
   await rm(ordersFile, { force: true })
   await rm(usersFile, { force: true })
+  await rm(loyaltyFile, { force: true })
 })
 
 async function authenticatedCustomer(app, suffix = '01') {

@@ -62,6 +62,16 @@ export async function findUserById(userId) {
   return database.users.find((user) => user.id === userId) ?? null
 }
 
+export async function listUsers() {
+  if (shouldUsePostgres()) {
+    const result = await query('select id, name, phone from customers order by name')
+    return result.rows
+  }
+  await writeQueue
+  const database = await readDatabase()
+  return database.users.map(({ id, name, phone }) => ({ id, name, phone }))
+}
+
 export async function upsertPendingUser({ name, phone }) {
   if (shouldUsePostgres()) {
     const existing = await findUserByPhone(phone)

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { notifyOrderChange } from './order-events.js'
 import { query, shouldUsePostgres } from './postgres.js'
+import { processOrderLoyalty } from './loyalty-store.js'
 
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const defaultFile = path.resolve(serviceDirectory, '../data/orders.json')
@@ -189,6 +190,7 @@ export async function updateOrder(orderId, changes) {
       ],
     )
     notifyOrderChange(updated)
+    await processOrderLoyalty(updated)
     return updated
   }
 
@@ -207,6 +209,7 @@ export async function updateOrder(orderId, changes) {
     }
     await writeDatabase(database)
     notifyOrderChange(database.orders[index])
+    await processOrderLoyalty(database.orders[index])
     return database.orders[index]
   })
 }

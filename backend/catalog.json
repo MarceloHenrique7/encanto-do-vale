@@ -570,5 +570,29 @@
         }
       ]
     }
+  ],
+  "promotions": [
+    {
+      "id": "kitkat-supreme-em-destaque",
+      "eyebrow": "Mais pedido",
+      "title": "KitKat Supreme para adoçar o dia",
+      "subtitle": "Brownie, creme de Ninho e muito chocolate em camadas generosas.",
+      "ctaLabel": "Quero experimentar",
+      "imageSrc": "https://static-images.ifood.com.br/pratos/96d9ebbc-5ca7-4c4f-bb54-267db3c54aa2/202606071716_51QF_i.jpg",
+      "productId": "bolo-de-pote-kitkat-supreme",
+      "tone": "dark",
+      "isActive": true
+    },
+    {
+      "id": "brownie-ninho-oferta",
+      "eyebrow": "Escolha da casa",
+      "title": "Brownie, Ninho e KitKat",
+      "subtitle": "Uma combinação cremosa e crocante pronta para pedir.",
+      "ctaLabel": "Ver este doce",
+      "imageSrc": "https://static-images.ifood.com.br/pratos/96d9ebbc-5ca7-4c4f-bb54-267db3c54aa2/202605121957_JQ77_.jpeg",
+      "productId": "bolo-de-pote-brownie-com-ninho-chocolate-e-kit-kat",
+      "tone": "rose",
+      "isActive": true
+    }
   ]
 }

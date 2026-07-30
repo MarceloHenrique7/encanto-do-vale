@@ -4,12 +4,13 @@ import {
   categories as publishedCategories,
   products as publishedProducts,
 } from '@/data/catalog'
-import type { Product, Category } from '@/domain/catalog'
+import type { Product, Category, PromotionCard } from '@/domain/catalog'
 
 export const ADMIN_PRODUCTS_UPDATED_EVENT = 'encanto-admin-products-updated'
 export const ADMIN_CATEGORIES_UPDATED_EVENT = 'encanto-admin-categories-updated'
 let runtimeProducts: Product[] = publishedProducts
 let runtimeCategories: Category[] = publishedCategories
+let runtimePromotions: PromotionCard[] = []
 let catalogRequest: Promise<void> | null = null
 
 export async function refreshCatalog() {
@@ -22,12 +23,16 @@ export async function refreshCatalog() {
         !Array.isArray(data.products) ||
         !data.products.every(isProduct) ||
         !Array.isArray(data.categories) ||
-        !data.categories.every(isCategory)
+        !data.categories.every(isCategory) ||
+        (data.promotions !== undefined &&
+          (!Array.isArray(data.promotions) ||
+            !data.promotions.every(isPromotion)))
       ) {
         throw new Error('INVALID_CATALOG')
       }
       runtimeProducts = data.products
       runtimeCategories = data.categories
+      runtimePromotions = data.promotions ?? []
       window.dispatchEvent(new Event(ADMIN_PRODUCTS_UPDATED_EVENT))
       window.dispatchEvent(new Event(ADMIN_CATEGORIES_UPDATED_EVENT))
     })
@@ -80,12 +85,32 @@ function isProduct(value: unknown): value is Product {
   )
 }
 
+function isPromotion(value: unknown): value is PromotionCard {
+  if (!value || typeof value !== 'object') return false
+  const promotion = value as Partial<PromotionCard>
+  return (
+    typeof promotion.id === 'string' &&
+    typeof promotion.eyebrow === 'string' &&
+    typeof promotion.title === 'string' &&
+    typeof promotion.subtitle === 'string' &&
+    typeof promotion.ctaLabel === 'string' &&
+    typeof promotion.imageSrc === 'string' &&
+    typeof promotion.productId === 'string' &&
+    ['dark', 'rose', 'cream'].includes(promotion.tone ?? '') &&
+    typeof promotion.isActive === 'boolean'
+  )
+}
+
 export function getCatalogProducts() {
   return runtimeProducts
 }
 
 export function getCatalogCategories() {
   return runtimeCategories
+}
+
+export function getCatalogPromotions() {
+  return runtimePromotions
 }
 
 export function useCatalogProducts() {
@@ -124,4 +149,23 @@ export function useCatalogCategories() {
   }, [])
 
   return categories
+}
+
+export function useCatalogPromotions() {
+  const [promotions, setPromotions] = useState<PromotionCard[]>(
+    () => getCatalogPromotions(),
+  )
+
+  useEffect(() => {
+    function syncPromotions() {
+      setPromotions(getCatalogPromotions())
+    }
+    window.addEventListener(ADMIN_PRODUCTS_UPDATED_EVENT, syncPromotions)
+    refreshCatalog()
+    return () => {
+      window.removeEventListener(ADMIN_PRODUCTS_UPDATED_EVENT, syncPromotions)
+    }
+  }, [])
+
+  return promotions
 }

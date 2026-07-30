@@ -3,6 +3,17 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { formatCurrency } from '@/lib/formatters'
 import CatalogManager from '@/components/CatalogManager'
 import StoreSettingsManager from '@/components/StoreSettingsManager'
+import LoyaltyManager from '@/components/LoyaltyManager'
+import {
+  FiBell,
+  FiAward,
+  FiExternalLink,
+  FiGrid,
+  FiLogOut,
+  FiRefreshCw,
+  FiSettings,
+  FiShoppingBag,
+} from 'react-icons/fi'
 
 type RestaurantStatus =
   | 'awaiting_payment'
@@ -208,7 +219,7 @@ export default function ManagerPage() {
   const [filter, setFilter] = useState<'active' | RestaurantStatus>('active')
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [actionError, setActionError] = useState('')
-  const [activeSection, setActiveSection] = useState<'orders' | 'catalog' | 'settings'>(
+  const [activeSection, setActiveSection] = useState<'orders' | 'catalog' | 'loyalty' | 'settings'>(
     'orders',
   )
   const [soundEnabled, setSoundEnabled] = useState(true)
@@ -490,45 +501,80 @@ export default function ManagerPage() {
         <div className="manager-headerActions">
           <button
             type="button"
+            className={activeSection === 'loyalty' ? 'is-active' : ''}
+            onClick={() => setActiveSection('loyalty')}
+          >
+            <FiAward />
+            <span>
+              <strong>Fidelidade</strong>
+              <small>Pontos, recompensas e clientes</small>
+            </span>
+          </button>
+          <button
+            type="button"
             className={soundEnabled && audioReady ? 'is-active' : ''}
             onClick={() => activateAlerts(true)}
           >
+            <FiBell />
             {soundEnabled && audioReady ? 'Alertas ativos' : 'Ativar alertas'}
           </button>
           <button type="button" onClick={() => loadOrders()}>
+            <FiRefreshCw />
             {loadingOrders ? 'Atualizando…' : 'Atualizar'}
           </button>
-          <button type="button" onClick={logout}>Sair</button>
+          <button type="button" onClick={logout}><FiLogOut /> Sair</button>
         </div>
       </header>
 
       <main className="manager-main">
         <nav className="manager-sectionNav" aria-label="Áreas do gestor">
+          <span className="manager-navLabel">Gestão da loja</span>
           <button
             type="button"
             className={activeSection === 'orders' ? 'is-active' : ''}
             onClick={() => setActiveSection('orders')}
           >
-            Pedidos {newCount ? <b>{newCount}</b> : null}
+            <FiShoppingBag />
+            <span>
+              <strong>Pedidos</strong>
+              <small>Acompanhe a operação</small>
+            </span>
+            {newCount ? <b>{newCount}</b> : null}
           </button>
           <button
             type="button"
             className={activeSection === 'catalog' ? 'is-active' : ''}
             onClick={() => setActiveSection('catalog')}
           >
-            Produtos e categorias
+            <FiGrid />
+            <span>
+              <strong>Cardápio</strong>
+              <small>Produtos, categorias e adicionais</small>
+            </span>
           </button>
           <button
             type="button"
             className={activeSection === 'settings' ? 'is-active' : ''}
             onClick={() => setActiveSection('settings')}
           >
-            Configurações da loja
+            <FiSettings />
+            <span>
+              <strong>Configurações</strong>
+              <small>Horários, taxas e pedido mínimo</small>
+            </span>
           </button>
-          <a href="/" target="_blank" rel="noreferrer">Ver cardápio</a>
+          <div className="manager-navDivider" />
+          <a href="/" target="_blank" rel="noreferrer">
+            <FiExternalLink />
+            <span>
+              <strong>Ver loja</strong>
+              <small>Abrir cardápio publicado</small>
+            </span>
+          </a>
         </nav>
 
-        {activeSection === 'catalog' ? <CatalogManager /> : activeSection === 'settings' ? <StoreSettingsManager /> : (
+        <section className="manager-content">
+        {activeSection === 'catalog' ? <CatalogManager /> : activeSection === 'loyalty' ? <LoyaltyManager /> : activeSection === 'settings' ? <StoreSettingsManager /> : (
           <>
         <section className="manager-welcome">
           <div>
@@ -714,6 +760,7 @@ export default function ManagerPage() {
         </section>
           </>
         )}
+        </section>
       </main>
     </div>
   )

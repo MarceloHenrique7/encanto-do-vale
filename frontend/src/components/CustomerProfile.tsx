@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
+import { FiAward, FiGift } from 'react-icons/fi'
 
 import type { CustomerUser } from '@/components/CustomerAuthGate'
 
@@ -17,6 +18,34 @@ type CustomerOrder = {
   total: number
   created_at: string
   items: Array<{ name: string; quantity: number }>
+}
+
+type LoyaltyData = {
+  settings: { points: number; amount: number; validityDays: number; enabled: boolean }
+  account: { currentBalance: number; pendingBalance: number }
+  rewards: Array<{
+    id: string
+    name: string
+    description: string
+    imageSrc: string
+    pointsCost: number
+    stock: number | null
+  }>
+  transactions: Array<{
+    id: string
+    type: string
+    points: number
+    description: string
+    expires_at?: string
+    created_at: string
+  }>
+  redemptions: Array<{
+    id: string
+    code: string
+    reward_id: string
+    status: string
+    created_at: string
+  }>
 }
 
 function statusLabel(order: CustomerOrder) {
@@ -63,6 +92,9 @@ export default function CustomerProfile({
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [ordersError, setOrdersError] = useState('')
   const [loadingOrders, setLoadingOrders] = useState(false)
+  const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null)
+  const [loyaltyError, setLoyaltyError] = useState('')
+  const [redeemingId, setRedeemingId] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
@@ -88,6 +120,17 @@ export default function CustomerProfile({
       })
       .finally(() => {
         if (active) setLoadingOrders(false)
+      })
+    fetch('/api/loyalty')
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error ?? 'Não foi possível carregar seus pontos.')
+        if (active) setLoyalty(data)
+      })
+      .catch((requestError) => {
+        if (active) setLoyaltyError(
+          requestError instanceof Error ? requestError.message : 'Não foi possível carregar seus pontos.',
+        )
       })
 
     return () => {
@@ -132,6 +175,34 @@ export default function CustomerProfile({
     window.location.assign('/')
   }
 
+  async function redeem(rewardId: string, rewardName: string) {
+    if (!window.confirm(`Resgatar “${rewardName}” com seus pontos?`)) return
+    setRedeemingId(rewardId)
+    setLoyaltyError('')
+    try {
+      const response = await fetch('/api/loyalty/redemptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rewardId }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error ?? 'Não foi possível resgatar.')
+      const refreshed = await fetch('/api/loyalty').then((result) => result.json())
+      setLoyalty(refreshed)
+      setMessage(`Recompensa resgatada. Código: ${data.redemption.code}`)
+    } catch (requestError) {
+      setLoyaltyError(
+        requestError instanceof Error ? requestError.message : 'Não foi possível resgatar.',
+      )
+    } finally {
+      setRedeemingId('')
+    }
+  }
+
+  const nextReward = loyalty?.rewards
+    .filter((reward) => reward.pointsCost > loyalty.account.currentBalance)
+    .sort((a, b) => a.pointsCost - b.pointsCost)[0]
+
   return (
     <div className={`customer-profileOverlay${isOpen ? ' is-open' : ''}`}>
       <button
@@ -148,6 +219,60 @@ export default function CustomerProfile({
           </div>
           <button type="button" onClick={onClose}>Fechar</button>
         </div>
+        {loyalty?.settings.enabled ? (
+          <section className="loyalty-wallet">
+            <header>
+              <span><FiAward /></span>
+              <div><small>Clube de Fidelidade</small><h3>Meus Pontos</h3></div>
+              <strong>{loyalty.account.currentBalance}<small> pontos</small></strong>
+            </header>
+            <p>
+              Você ganha {loyalty.settings.points} ponto(s) a cada {formatCurrency(loyalty.settings.amount)}
+              {' '}gasto em produtos. Os pontos são liberados quando o pedido é finalizado.
+            </p>
+            {nextReward ? (
+              <div className="loyalty-progress">
+                <div><span>Próxima recompensa</span><strong>Faltam {nextReward.pointsCost - loyalty.account.currentBalance} pontos</strong></div>
+                <progress value={loyalty.account.currentBalance} max={nextReward.pointsCost} />
+              </div>
+            ) : null}
+            <div className="loyalty-rewardList">
+              {loyalty.rewards.map((reward) => (
+                <article key={reward.id}>
+                  <span>{reward.imageSrc ? <img src={reward.imageSrc} alt="" /> : <FiGift />}</span>
+                  <div><strong>{reward.name}</strong><small>{reward.description}</small><b>{reward.pointsCost} pontos</b></div>
+                  <button
+                    type="button"
+                    disabled={loyalty.account.currentBalance < reward.pointsCost || redeemingId === reward.id}
+                    onClick={() => redeem(reward.id, reward.name)}
+                  >
+                    {redeemingId === reward.id ? 'Resgatando…' : 'Resgatar'}
+                  </button>
+                </article>
+              ))}
+            </div>
+            {loyalty.redemptions.length ? (
+              <div className="loyalty-codes">
+                <strong>Meus resgates</strong>
+                {loyalty.redemptions.slice(0, 4).map((redemption) => (
+                  <div key={redemption.id}><code>{redemption.code}</code><span>{redemption.status === 'available' ? 'Disponível' : 'Utilizado'}</span></div>
+                ))}
+              </div>
+            ) : null}
+            {loyalty.transactions.length ? (
+              <details className="loyalty-history">
+                <summary>Ver histórico de pontos</summary>
+                {loyalty.transactions.slice(0, 12).map((transaction) => (
+                  <div key={transaction.id}>
+                    <span>{transaction.description}</span>
+                    <strong className={transaction.points > 0 ? 'is-credit' : ''}>{transaction.points > 0 ? '+' : ''}{transaction.points}</strong>
+                  </div>
+                ))}
+              </details>
+            ) : null}
+          </section>
+        ) : null}
+        {loyaltyError ? <p className="customer-authError">{loyaltyError}</p> : null}
         <form onSubmit={saveProfile}>
           <label>
             Nome

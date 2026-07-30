@@ -6,11 +6,17 @@ import {
   FiCheck,
   FiEye,
   FiEyeOff,
+  FiGrid,
+  FiHash,
   FiImage,
   FiLayers,
+  FiLink,
+  FiPackage,
   FiPlus,
   FiSearch,
+  FiTag,
   FiTrash2,
+  FiZap,
 } from 'react-icons/fi'
 
 import type {
@@ -19,12 +25,20 @@ import type {
   ProductExtra,
   ProductExtraGroup,
   ProductOption,
+  PromotionCard,
 } from '@/domain/catalog'
 import { refreshCatalog } from '@/features/catalog/catalogStore'
 import { formatCurrency } from '@/lib/formatters'
 
-type Catalog = { products: Product[]; categories: Category[]; extras: ProductExtra[] }
+type Catalog = {
+  products: Product[]
+  categories: Category[]
+  extras: ProductExtra[]
+  promotions: PromotionCard[]
+}
 type ExtraDraft = Omit<ProductExtra, 'price'> & { price: string }
+type PromotionDraft = PromotionCard
+type CatalogArea = 'products' | 'promotions' | 'extras' | 'categories'
 type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras' | 'extraGroups'> & {
   basePrice: string
   options: Array<Omit<ProductOption, 'price'> & { price: string }>
@@ -37,7 +51,24 @@ type DraftProduct = Omit<Product, 'basePrice' | 'options' | 'extras' | 'extraGro
   >
 }
 
-const emptyCatalog: Catalog = { products: [], categories: [], extras: [] }
+const emptyCatalog: Catalog = {
+  products: [],
+  categories: [],
+  extras: [],
+  promotions: [],
+}
+
+const emptyPromotion: PromotionDraft = {
+  id: '',
+  eyebrow: 'Oferta especial',
+  title: '',
+  subtitle: '',
+  ctaLabel: 'Ver oferta',
+  imageSrc: '',
+  productId: '',
+  tone: 'dark',
+  isActive: true,
+}
 
 function slug(value: string) {
   return value
@@ -134,6 +165,11 @@ export default function CatalogManager() {
   const [editingCategoryId, setEditingCategoryId] = useState('')
   const [extraDraft, setExtraDraft] = useState<ExtraDraft>({ id: '', label: '', price: '' })
   const [editingExtraId, setEditingExtraId] = useState('')
+  const [extraSearch, setExtraSearch] = useState('')
+  const [categorySearch, setCategorySearch] = useState('')
+  const [promotionDraft, setPromotionDraft] = useState<PromotionDraft>(emptyPromotion)
+  const [editingPromotionId, setEditingPromotionId] = useState('')
+  const [activeCatalogArea, setActiveCatalogArea] = useState<CatalogArea>('products')
 
   async function loadCatalog(selectFirst = false) {
     setLoading(true)
@@ -174,6 +210,37 @@ export default function CatalogManager() {
     })).sort((first, second) => first.label.localeCompare(second.label, 'pt-BR'))
   }, [catalog.extras, catalog.products])
 
+  const filteredExtras = useMemo(() => {
+    const term = extraSearch.trim().toLocaleLowerCase('pt-BR')
+    if (!term) return reusableExtras
+    return reusableExtras.filter((extra) =>
+      `${extra.label} ${extra.id}`.toLocaleLowerCase('pt-BR').includes(term),
+    )
+  }, [extraSearch, reusableExtras])
+
+  const categoryInsights = useMemo(() => {
+    return catalog.categories.map((category) => {
+      const products = catalog.products.filter((product) =>
+        product.categoryIds.includes(category.id),
+      )
+      return {
+        ...category,
+        productCount: products.length,
+        visibleCount: products.filter((product) => product.isAvailable).length,
+      }
+    })
+  }, [catalog.categories, catalog.products])
+
+  const filteredCategories = useMemo(() => {
+    const term = categorySearch.trim().toLocaleLowerCase('pt-BR')
+    if (!term) return categoryInsights
+    return categoryInsights.filter((category) =>
+      `${category.name} ${category.shortLabel} ${category.id}`
+        .toLocaleLowerCase('pt-BR')
+        .includes(term),
+    )
+  }, [categoryInsights, categorySearch])
+
   function choose(product: Product) {
     setSelectedId(product.id)
     setDraft(productDraft(product))
@@ -181,6 +248,7 @@ export default function CatalogManager() {
   }
 
   function createProduct() {
+    setActiveCatalogArea('products')
     setSelectedId('')
     setDraft(newDraft(catalog.categories))
     setMessage('Preencha os dados do novo produto.')
@@ -467,9 +535,15 @@ export default function CatalogManager() {
   }
 
   function createExtraDraft() {
+    setActiveCatalogArea('extras')
     setEditingExtraId('')
     setExtraDraft({ id: '', label: '', price: '' })
-    document.querySelector('#complementos')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  function createCategoryDraft() {
+    setActiveCatalogArea('categories')
+    setEditingCategoryId('')
+    setCategoryDraft({ id: '', name: '', shortLabel: '' })
   }
 
   function chooseExtra(extra: ProductExtra) {
@@ -527,36 +601,185 @@ export default function CatalogManager() {
     }
   }
 
+  function createPromotionDraft() {
+    setActiveCatalogArea('promotions')
+    const firstProduct = catalog.products.find((product) => product.isAvailable)
+    setEditingPromotionId('')
+    setPromotionDraft({
+      ...emptyPromotion,
+      productId: firstProduct?.id ?? '',
+      imageSrc: firstProduct?.imageSrc ?? '',
+    })
+  }
+
+  function choosePromotion(promotion: PromotionCard) {
+    setEditingPromotionId(promotion.id)
+    setPromotionDraft(promotion)
+  }
+
+  async function savePromotion(event: FormEvent) {
+    event.preventDefault()
+    try {
+      const payload = {
+        ...promotionDraft,
+        id: promotionDraft.id || slug(promotionDraft.title),
+      }
+      const data = await api(
+        editingPromotionId
+          ? `/api/admin/promotions/${encodeURIComponent(editingPromotionId)}`
+          : '/api/admin/promotions',
+        {
+          method: editingPromotionId ? 'PUT' : 'POST',
+          body: JSON.stringify(payload),
+        },
+      )
+      setEditingPromotionId(data.promotion.id)
+      setPromotionDraft(data.promotion)
+      await loadCatalog()
+      await refreshCatalog()
+      setMessage('Card promocional salvo e publicado.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao salvar promoção.')
+    }
+  }
+
+  async function removePromotion() {
+    if (
+      !editingPromotionId ||
+      !window.confirm('Excluir este card promocional definitivamente?')
+    ) return
+    try {
+      await api(`/api/admin/promotions/${encodeURIComponent(editingPromotionId)}`, {
+        method: 'DELETE',
+      })
+      setEditingPromotionId('')
+      setPromotionDraft(emptyPromotion)
+      await loadCatalog()
+      await refreshCatalog()
+      setMessage('Card promocional excluído.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao excluir promoção.')
+    }
+  }
+
+  const productFormCompletion = [
+    Boolean(draft.name.trim()),
+    money(draft.basePrice) > 0,
+    Boolean(draft.description.trim()),
+    Boolean(draft.imageSrc.trim()),
+    draft.categoryIds.length > 0,
+  ].filter(Boolean).length
+  const areaCopy: Record<CatalogArea, { eyebrow: string; title: string; description: string }> = {
+    products: {
+      eyebrow: 'Produtos',
+      title: 'Gerencie os itens do cardápio',
+      description: 'Crie, edite e publique cada produto em um espaço dedicado.',
+    },
+    promotions: {
+      eyebrow: 'Campanhas',
+      title: 'Cards promocionais',
+      description: 'Destaques visuais que levam o cliente diretamente para uma oferta.',
+    },
+    extras: {
+      eyebrow: 'Personalização',
+      title: 'Complementos',
+      description: 'Gerencie adicionais e preços sem misturar com o cadastro de produtos.',
+    },
+    categories: {
+      eyebrow: 'Organização',
+      title: 'Categorias',
+      description: 'Organize as seções que aparecem na vitrine do cliente.',
+    },
+  }
+
   return (
     <section className="catalog-manager">
       <div className="catalog-managerHero">
         <div>
-          <span>Catálogo da loja</span>
-          <h1>Produtos, complementos e categorias</h1>
-          <p>As alterações são publicadas na vitrine e usadas no cálculo seguro do checkout.</p>
+          <span>{areaCopy[activeCatalogArea].eyebrow}</span>
+          <h1>{areaCopy[activeCatalogArea].title}</h1>
+          <p>{areaCopy[activeCatalogArea].description}</p>
         </div>
         <div className="catalog-managerHeroActions">
-          <button type="button" onClick={createExtraDraft}><FiPlus /> Novo complemento</button>
-          <button type="button" className="manager-primaryAction" onClick={createProduct}><FiPlus /> Novo produto</button>
+          {activeCatalogArea === 'products' ? <button type="button" className="manager-primaryAction" onClick={createProduct}><FiPlus /> Novo produto</button> : null}
+          {activeCatalogArea === 'promotions' ? <button type="button" className="manager-primaryAction" onClick={createPromotionDraft}><FiPlus /> Nova promoção</button> : null}
+          {activeCatalogArea === 'extras' ? <button type="button" className="manager-primaryAction" onClick={createExtraDraft}><FiPlus /> Novo complemento</button> : null}
+          {activeCatalogArea === 'categories' ? <button type="button" className="manager-primaryAction" onClick={createCategoryDraft}><FiPlus /> Nova categoria</button> : null}
         </div>
-      </div>
-
-      <div className="catalog-managerMetrics">
-        <article><FiBox /><strong>{catalog.products.length}</strong><span>produtos</span></article>
-        <article><FiEye /><strong>{catalog.products.filter((item) => item.isAvailable).length}</strong><span>disponíveis</span></article>
-        <article><FiEyeOff /><strong>{catalog.products.filter((item) => !item.isAvailable).length}</strong><span>pausados</span></article>
-        <article><FiLayers /><strong>{catalog.extras.length}</strong><span>complementos</span></article>
       </div>
 
       <nav className="catalog-managerNav" aria-label="Áreas do catálogo">
-        <a href="#produtos"><FiBox /> Produtos</a>
-        <a href="#complementos"><FiLayers /> Complementos</a>
-        <a href="#categorias"><FiEdit3 /> Categorias</a>
+        <button type="button" className={activeCatalogArea === 'products' ? 'is-active' : ''} onClick={() => setActiveCatalogArea('products')}><FiBox /><span><strong>Produtos</strong><small>{catalog.products.length} itens</small></span></button>
+        <button type="button" className={activeCatalogArea === 'promotions' ? 'is-active' : ''} onClick={() => setActiveCatalogArea('promotions')}><FiZap /><span><strong>Promoções</strong><small>{catalog.promotions.length} cards</small></span></button>
+        <button type="button" className={activeCatalogArea === 'extras' ? 'is-active' : ''} onClick={() => setActiveCatalogArea('extras')}><FiLayers /><span><strong>Complementos</strong><small>{catalog.extras.length} adicionais</small></span></button>
+        <button type="button" className={activeCatalogArea === 'categories' ? 'is-active' : ''} onClick={() => setActiveCatalogArea('categories')}><FiGrid /><span><strong>Categorias</strong><small>{catalog.categories.length} seções</small></span></button>
       </nav>
 
       {message ? <p className="catalog-managerMessage">{message}</p> : null}
 
-      <div className="catalog-managerWorkspace" id="produtos">
+      {activeCatalogArea === 'promotions' ? <section className="catalog-promotionManager" id="promocoes">
+        <header className="catalog-studioHeader">
+          <div className="catalog-studioTitle">
+            <span className="catalog-studioIcon catalog-studioIcon--promotion"><FiZap /></span>
+            <div><small>Campanhas da loja</small><h2>Cards promocionais</h2><p>Destaques compactos que levam o cliente direto ao produto.</p></div>
+          </div>
+          <div className="catalog-studioHeaderActions">
+            <span><strong>{catalog.promotions.length}</strong> cards</span>
+            <span><strong>{catalog.promotions.filter((item) => item.isActive).length}</strong> ativos</span>
+          </div>
+        </header>
+        <div className="catalog-promotionBody">
+          <div className="catalog-promotionList">
+            {catalog.promotions.map((promotion) => (
+              <button
+                type="button"
+                className={editingPromotionId === promotion.id ? 'is-active' : ''}
+                key={promotion.id}
+                onClick={() => choosePromotion(promotion)}
+              >
+                <span className={`catalog-promotionThumb is-${promotion.tone}`}>
+                  {promotion.imageSrc ? <img src={promotion.imageSrc} alt="" /> : <FiZap />}
+                </span>
+                <span><strong>{promotion.title}</strong><small>{promotion.eyebrow} · {promotion.isActive ? 'Ativo' : 'Pausado'}</small></span>
+                {promotion.isActive ? <FiEye /> : <FiEyeOff />}
+              </button>
+            ))}
+            {!catalog.promotions.length ? (
+              <div className="catalog-editorEmpty"><FiZap /><span>Crie o primeiro card para destacar uma oferta na entrada do cardápio.</span></div>
+            ) : null}
+          </div>
+          <form className="catalog-promotionEditor" onSubmit={savePromotion}>
+            <div className={`catalog-promotionPreview is-${promotionDraft.tone}`}>
+              {promotionDraft.imageSrc ? <img src={promotionDraft.imageSrc} alt="" /> : null}
+              <div>
+                <small>{promotionDraft.eyebrow || 'Oferta especial'}</small>
+                <strong>{promotionDraft.title || 'Título da campanha'}</strong>
+                <p>{promotionDraft.subtitle || 'Uma mensagem curta e convidativa para o cliente.'}</p>
+                <span>{promotionDraft.ctaLabel || 'Ver oferta'} →</span>
+              </div>
+            </div>
+            <div className="catalog-managerFields">
+              <label><span>Selo superior</span><input required value={promotionDraft.eyebrow} onChange={(event) => setPromotionDraft((current) => ({ ...current, eyebrow: event.target.value }))} placeholder="Oferta especial" /></label>
+              <label><span>Estilo</span><select value={promotionDraft.tone} onChange={(event) => setPromotionDraft((current) => ({ ...current, tone: event.target.value as PromotionCard['tone'] }))}><option value="dark">Grafite</option><option value="rose">Rosé</option><option value="cream">Claro</option></select></label>
+              <label className="is-wide"><span>Título</span><input required value={promotionDraft.title} onChange={(event) => setPromotionDraft((current) => ({ ...current, title: event.target.value, id: editingPromotionId ? current.id : slug(event.target.value) }))} placeholder="Doce do dia com preço especial" /></label>
+              <label className="is-wide"><span>Mensagem curta</span><textarea rows={2} value={promotionDraft.subtitle} onChange={(event) => setPromotionDraft((current) => ({ ...current, subtitle: event.target.value }))} placeholder="Conte em uma frase por que vale a pena pedir." /></label>
+              <label><span>Produto vinculado</span><select required value={promotionDraft.productId} onChange={(event) => {
+                const product = catalog.products.find((item) => item.id === event.target.value)
+                setPromotionDraft((current) => ({ ...current, productId: event.target.value, imageSrc: current.imageSrc || product?.imageSrc || '' }))
+              }}><option value="">Selecione...</option>{catalog.products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select></label>
+              <label><span>Texto do botão</span><input required value={promotionDraft.ctaLabel} onChange={(event) => setPromotionDraft((current) => ({ ...current, ctaLabel: event.target.value }))} /></label>
+              <label className="is-wide"><span>Imagem do card</span><input value={promotionDraft.imageSrc} onChange={(event) => setPromotionDraft((current) => ({ ...current, imageSrc: event.target.value }))} placeholder="URL da imagem — usa a do produto automaticamente" /></label>
+              <label className="catalog-promotionToggle is-wide"><input type="checkbox" checked={promotionDraft.isActive} onChange={(event) => setPromotionDraft((current) => ({ ...current, isActive: event.target.checked }))} /><span><strong>Card ativo</strong><small>Exibir na entrada do cardápio</small></span></label>
+            </div>
+            <div className="catalog-categoryActions">
+              <button className="manager-primaryAction" type="submit"><FiCheck /> {editingPromotionId ? 'Atualizar promoção' : 'Criar promoção'}</button>
+              {editingPromotionId ? <button className="is-danger" type="button" onClick={removePromotion}><FiTrash2 /> Excluir</button> : null}
+            </div>
+          </form>
+        </div>
+      </section> : null}
+
+      {activeCatalogArea === 'products' ? <div className="catalog-managerWorkspace" id="produtos">
         <aside className="catalog-managerList">
           <label><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar produto..." /></label>
           <small>{loading ? 'Carregando…' : `${filtered.length} itens encontrados`}</small>
@@ -578,7 +801,11 @@ export default function CatalogManager() {
         <form className="catalog-managerEditor" onSubmit={saveProduct}>
           <header>
             <div><span>{selectedId ? 'Editando produto' : 'Novo produto'}</span><h2>{draft.name || 'Produto sem nome'}</h2></div>
-            <div>
+            <div className="catalog-productHeaderActions">
+              <span className="catalog-productCompletion">
+                <b>{productFormCompletion}/5</b>
+                <span><strong>{productFormCompletion === 5 ? 'Pronto para publicar' : 'Complete o essencial'}</strong><small>nome, preço, descrição, foto e categoria</small></span>
+              </span>
               {selectedId ? <button type="button" onClick={duplicate}><FiCopy /> Duplicar</button> : null}
               {selectedId ? <button type="button" className="is-danger" onClick={removeProduct}><FiTrash2 /> Excluir</button> : null}
             </div>
@@ -845,51 +1072,137 @@ export default function CatalogManager() {
 
           <footer><span>{selectedId ? 'Alterações substituem o item atual.' : 'Um novo item será criado.'}</span><button disabled={saving} type="submit" className="manager-primaryAction">{saving ? 'Salvando…' : 'Salvar e publicar'}</button></footer>
         </form>
-      </div>
+      </div> : null}
 
-      <section className="catalog-extraManager" id="complementos">
-        <header>
-          <div><span>Biblioteca geral</span><h2>Gerenciar complementos</h2><p>Crie uma vez, reutilize nos produtos e mantenha nome e preço atualizados em todos os vínculos.</p></div>
-          <button type="button" onClick={createExtraDraft}><FiPlus /> Novo complemento</button>
+      {activeCatalogArea === 'extras' ? <section className="catalog-extraManager" id="complementos">
+        <header className="catalog-studioHeader">
+          <div className="catalog-studioTitle">
+            <span className="catalog-studioIcon"><FiLayers /></span>
+            <div><small>Estúdio de personalização</small><h2>Complementos</h2><p>Crie adicionais reutilizáveis e controle onde cada escolha aparece.</p></div>
+          </div>
+          <div className="catalog-studioHeaderActions">
+            <span><strong>{reusableExtras.length}</strong> cadastrados</span>
+            <span><strong>{reusableExtras.filter((extra) => extra.sourceProducts.length).length}</strong> em uso</span>
+          </div>
         </header>
         <div className="catalog-extraManagerBody">
           <div className="catalog-extraManagerList">
-            {reusableExtras.map((extra) => (
+            <label className="catalog-studioSearch">
+              <FiSearch />
+              <input
+                value={extraSearch}
+                onChange={(event) => setExtraSearch(event.target.value)}
+                placeholder="Buscar complemento..."
+              />
+            </label>
+            <div className="catalog-studioListMeta">
+              <span>Biblioteca</span>
+              <small>{filteredExtras.length} resultado(s)</small>
+            </div>
+            {filteredExtras.map((extra) => (
               <button type="button" className={editingExtraId === extra.id ? 'is-active' : ''} key={extra.id} onClick={() => chooseExtra(extra)}>
-                <FiLayers />
-                <span><strong>{extra.label}</strong><small>{formatCurrency(extra.price)} · {extra.sourceProducts.length} produto(s)</small></span>
-                <FiEdit3 />
+                <span className="catalog-studioAvatar">{extra.label.slice(0, 1).toUpperCase()}</span>
+                <span>
+                  <strong>{extra.label}</strong>
+                  <small>{formatCurrency(extra.price)}</small>
+                  <em className={extra.sourceProducts.length ? 'is-linked' : ''}>
+                    <FiLink /> {extra.sourceProducts.length
+                      ? `${extra.sourceProducts.length} produto(s)`
+                      : 'Ainda não utilizado'}
+                  </em>
+                </span>
+                <FiEdit3 className="catalog-studioEditIcon" />
               </button>
             ))}
-            {!reusableExtras.length ? <div className="catalog-editorEmpty"><FiLayers /><span>Nenhum complemento cadastrado.</span></div> : null}
+            {!filteredExtras.length ? <div className="catalog-editorEmpty"><FiLayers /><span>{extraSearch ? 'Nenhum complemento encontrado.' : 'Nenhum complemento cadastrado.'}</span></div> : null}
           </div>
           <form className="catalog-extraManagerForm" onSubmit={saveExtra}>
+            <div className="catalog-studioEditorHeader">
+              <span className="catalog-studioPreviewIcon"><FiTag /></span>
+              <div>
+                <small>{editingExtraId ? 'Editando complemento' : 'Novo complemento'}</small>
+                <h3>{extraDraft.label || 'Dê um nome ao adicional'}</h3>
+                <p>{extraDraft.price ? `Adiciona ${formatCurrency(money(extraDraft.price))} ao item` : 'Defina o nome e o valor cobrado.'}</p>
+              </div>
+            </div>
             <div className="catalog-managerFields">
-              <label className="is-wide"><span>Nome do complemento</span><input required placeholder="Ex.: Morango" value={extraDraft.label} onChange={(event) => setExtraDraft((current) => ({ ...current, label: event.target.value, id: editingExtraId ? current.id : slug(event.target.value) }))} /></label>
-              <label><span>ID único</span><input required value={extraDraft.id} onChange={(event) => setExtraDraft((current) => ({ ...current, id: slug(event.target.value) }))} /></label>
+              <label className="is-wide"><span>Nome exibido para o cliente</span><input required placeholder="Ex.: Morango extra" value={extraDraft.label} onChange={(event) => setExtraDraft((current) => ({ ...current, label: event.target.value, id: editingExtraId ? current.id : slug(event.target.value) }))} /></label>
               <label><span>Preço adicional</span><div className="catalog-moneyInput"><span>R$</span><input required inputMode="decimal" placeholder="0,00" value={extraDraft.price} onChange={(event) => setExtraDraft((current) => ({ ...current, price: event.target.value }))} /></div></label>
+              <label><span>Identificador interno</span><div className="catalog-idInput"><FiHash /><input required value={extraDraft.id} onChange={(event) => setExtraDraft((current) => ({ ...current, id: slug(event.target.value) }))} /></div></label>
+            </div>
+            <div className="catalog-studioImpact">
+              <FiPackage />
+              <div>
+                <strong>Impacto no cardápio</strong>
+                {editingExtraId && reusableExtras.find((extra) => extra.id === editingExtraId)?.sourceProducts.length ? (
+                  <p>Este complemento aparece em {reusableExtras.find((extra) => extra.id === editingExtraId)?.sourceProducts.join(', ')}. A atualização será aplicada em todos eles.</p>
+                ) : (
+                  <p>Depois de criar, vincule este complemento aos produtos ou grupos de escolha.</p>
+                )}
+              </div>
             </div>
             <div className="catalog-extraManagerActions">
               <button type="submit" className="manager-primaryAction"><FiCheck /> {editingExtraId ? 'Atualizar complemento' : 'Criar complemento'}</button>
               {editingExtraId ? <button type="button" className="is-danger" onClick={removeLibraryExtra}><FiTrash2 /> Excluir</button> : null}
             </div>
-            <small>As alterações são salvas no banco e aplicadas automaticamente aos produtos que usam este complemento.</small>
           </form>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="catalog-categoryManager" id="categorias">
-        <header><div><span>Organização</span><h2>Gerenciar categorias</h2></div><button type="button" onClick={() => { setEditingCategoryId(''); setCategoryDraft({ id: '', name: '', shortLabel: '' }) }}><FiPlus /> Nova categoria</button></header>
+      {activeCatalogArea === 'categories' ? <section className="catalog-categoryManager" id="categorias">
+        <header className="catalog-studioHeader">
+          <div className="catalog-studioTitle">
+            <span className="catalog-studioIcon catalog-studioIcon--category"><FiGrid /></span>
+            <div><small>Organização da vitrine</small><h2>Categorias</h2><p>Agrupe produtos e acompanhe quais seções estão visíveis para o cliente.</p></div>
+          </div>
+          <div className="catalog-studioHeaderActions">
+            <span><strong>{catalog.categories.length}</strong> categorias</span>
+            <span><strong>{categoryInsights.filter((category) => category.visibleCount).length}</strong> visíveis</span>
+          </div>
+        </header>
         <div className="catalog-categoryBody">
-          <div>{catalog.categories.map((category) => <button type="button" className={editingCategoryId === category.id ? 'is-active' : ''} key={category.id} onClick={() => { setEditingCategoryId(category.id); setCategoryDraft(category) }}><FiEdit3 /><span><strong>{category.name}</strong><small>{category.shortLabel || category.id}</small></span></button>)}</div>
-          <div className="catalog-managerFields">
-            <label><span>Nome</span><input value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value, id: current.id || slug(event.target.value) }))} /></label>
-            <label><span>ID</span><input value={categoryDraft.id} onChange={(event) => setCategoryDraft((current) => ({ ...current, id: slug(event.target.value) }))} /></label>
-            <label className="is-wide"><span>Descrição curta</span><input value={categoryDraft.shortLabel} onChange={(event) => setCategoryDraft((current) => ({ ...current, shortLabel: event.target.value }))} /></label>
+          <div className="catalog-categoryList">
+            <label className="catalog-studioSearch">
+              <FiSearch />
+              <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Buscar categoria..." />
+            </label>
+            <div className="catalog-studioListMeta"><span>Seções da loja</span><small>{filteredCategories.length} resultado(s)</small></div>
+            <div className="catalog-categoryCards">
+              {filteredCategories.map((category, index) => (
+                <button type="button" className={editingCategoryId === category.id ? 'is-active' : ''} key={category.id} onClick={() => { setEditingCategoryId(category.id); setCategoryDraft(category) }}>
+                  <span className={`catalog-categoryAvatar catalog-categoryAvatar--${index % 4}`}><FiGrid /></span>
+                  <span>
+                    <strong>{category.name}</strong>
+                    <small>{category.shortLabel || `#${category.id}`}</small>
+                    <em className={category.visibleCount ? 'is-visible' : ''}>
+                      {category.visibleCount ? <FiEye /> : <FiEyeOff />}
+                      {category.visibleCount ? `${category.visibleCount} visível(is)` : 'Oculta na loja'}
+                    </em>
+                  </span>
+                  <b>{category.productCount}</b>
+                </button>
+              ))}
+            </div>
+            {!filteredCategories.length ? <div className="catalog-editorEmpty"><FiGrid /><span>{categorySearch ? 'Nenhuma categoria encontrada.' : 'Crie a primeira categoria da loja.'}</span></div> : null}
+          </div>
+          <div className="catalog-categoryEditor">
+            <div className="catalog-studioEditorHeader">
+              <span className="catalog-studioPreviewIcon"><FiGrid /></span>
+              <div><small>{editingCategoryId ? 'Editando categoria' : 'Nova categoria'}</small><h3>{categoryDraft.name || 'Nome da nova seção'}</h3><p>{categoryDraft.shortLabel || 'A descrição ajuda o cliente a entender o que encontrará aqui.'}</p></div>
+            </div>
+            <div className="catalog-categoryPreview">
+              <small>Prévia no cardápio</small>
+              <div><span>{categoryDraft.name || 'Nome da categoria'}</span><b>{editingCategoryId ? categoryInsights.find((category) => category.id === editingCategoryId)?.visibleCount ?? 0 : 0}</b></div>
+            </div>
+            <div className="catalog-managerFields">
+              <label className="is-wide"><span>Nome exibido</span><input placeholder="Ex.: Bolos para festa" value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value, id: current.id || slug(event.target.value) }))} /></label>
+              <label className="is-wide"><span>Descrição curta</span><input placeholder="Ex.: Celebre com sabores especiais" value={categoryDraft.shortLabel} onChange={(event) => setCategoryDraft((current) => ({ ...current, shortLabel: event.target.value }))} /></label>
+              <label className="is-wide"><span>Identificador interno</span><div className="catalog-idInput"><FiHash /><input value={categoryDraft.id} onChange={(event) => setCategoryDraft((current) => ({ ...current, id: slug(event.target.value) }))} /></div></label>
+            </div>
             <div className="catalog-categoryActions"><button type="button" className="manager-primaryAction" onClick={saveCategory}>Salvar categoria</button>{editingCategoryId ? <button type="button" className="is-danger" onClick={removeCategory}>Excluir</button> : null}</div>
           </div>
         </div>
-      </section>
+      </section> : null}
     </section>
   )
 }

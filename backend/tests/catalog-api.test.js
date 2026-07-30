@@ -92,6 +92,26 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
     extraIds: ['morango', 'banana'],
   }])
 
+  const promotion = await manager.post('/api/admin/promotions').send({
+    id: 'promocao-crud',
+    eyebrow: 'Oferta de teste',
+    title: 'Card promocional CRUD',
+    subtitle: 'Promoção criada pelo teste automatizado.',
+    ctaLabel: 'Ver produto',
+    imageSrc: '',
+    productId: 'produto-crud',
+    tone: 'rose',
+    isActive: true,
+  })
+  assert.equal(promotion.status, 201)
+  assert.equal(promotion.body.promotion.tone, 'rose')
+
+  const updatedPromotion = await manager
+    .put('/api/admin/promotions/promocao-crud')
+    .send({ ...promotion.body.promotion, isActive: false })
+  assert.equal(updatedPromotion.status, 200)
+  assert.equal(updatedPromotion.body.promotion.isActive, false)
+
   const update = await manager.put('/api/admin/products/produto-crud').send({
     ...creation.body.product,
     basePrice: 21.5,
@@ -136,6 +156,10 @@ test('publica catálogo e protege todo o CRUD do gestor', async () => {
   )
   assert.equal(categoryInUse.status, 409)
 
+  assert.equal(
+    (await manager.delete('/api/admin/promotions/promocao-crud')).status,
+    204,
+  )
   assert.equal(
     (await manager.delete('/api/admin/products/produto-crud')).status,
     204,

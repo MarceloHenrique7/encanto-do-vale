@@ -29,6 +29,7 @@ import {
   publicUser,
 } from '../services/customer-auth.js'
 import { upsertVerifiedUser } from '../services/user-store.js'
+import { applyRedemption } from '../services/loyalty-store.js'
 
 function publicOrder(order) {
   return {
@@ -172,6 +173,41 @@ export async function postOrder(request, response) {
   }
 
   await createOrder(order)
+
+  const rewardCode = sanitizeText(body.reward_code, 40).toUpperCase()
+  if (rewardCode) {
+    try {
+      const redemption = await applyRedemption(user.id, rewardCode, order)
+      await updateOrder(order.id, {
+        items: redemption
+          ? [
+              ...order.items,
+              {
+                id: `reward-${redemption.reward_id}`,
+                name: redemption.name,
+                quantity: 1,
+                unit_price: 0,
+                is_loyalty_reward: true,
+              },
+            ]
+          : order.items,
+        loyalty_reward: redemption
+          ? {
+              code: rewardCode,
+              name: redemption.name,
+              product_id: redemption.product_id,
+            }
+          : null,
+      })
+    } catch (error) {
+      await updateOrder(order.id, {
+        status: 'failed',
+        restaurant_status: 'cancelled',
+        status_detail: 'invalid_loyalty_reward',
+      })
+      return response.status(409).json({ error: error.message })
+    }
+  }
 
   return response.status(201).json({
     order_id: order.id,

@@ -4,6 +4,18 @@ export type Category = {
   shortLabel: string
 }
 
+export type PromotionCard = {
+  id: string
+  eyebrow: string
+  title: string
+  subtitle: string
+  ctaLabel: string
+  imageSrc: string
+  productId: string
+  tone: 'dark' | 'rose' | 'cream'
+  isActive: boolean
+}
+
 export type ProductOption = {
   id: string
   label: string

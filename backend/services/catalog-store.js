@@ -17,7 +17,7 @@ function catalogFile() {
 }
 
 function emptyCatalog() {
-  return { categories: [], products: [], extras: [] }
+  return { categories: [], products: [], extras: [], promotions: [] }
 }
 
 function normalizeDatabase(value) {
@@ -33,6 +33,7 @@ function normalizeDatabase(value) {
     categories: Array.isArray(value?.categories) ? value.categories : [],
     products,
     extras: [...extrasById.values()],
+    promotions: Array.isArray(value?.promotions) ? value.promotions : [],
   }
 }
 
@@ -270,6 +271,44 @@ export async function deleteCategory(categoryId) {
     const index = catalog.categories.findIndex((item) => item.id === categoryId)
     if (index === -1) return false
     catalog.categories.splice(index, 1)
+    await writeCatalog(catalog)
+    return true
+  })
+}
+
+export async function createPromotion(promotion) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    if (catalog.promotions.some((item) => item.id === promotion.id)) return null
+    catalog.promotions.push(promotion)
+    await writeCatalog(catalog)
+    return promotion
+  })
+}
+
+export async function updatePromotion(promotionId, promotion) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    const index = catalog.promotions.findIndex((item) => item.id === promotionId)
+    if (index === -1) return null
+    if (
+      promotion.id !== promotionId &&
+      catalog.promotions.some((item) => item.id === promotion.id)
+    ) {
+      return false
+    }
+    catalog.promotions[index] = promotion
+    await writeCatalog(catalog)
+    return promotion
+  })
+}
+
+export async function deletePromotion(promotionId) {
+  return serializedWrite(async () => {
+    const catalog = await readCatalog()
+    const index = catalog.promotions.findIndex((item) => item.id === promotionId)
+    if (index === -1) return false
+    catalog.promotions.splice(index, 1)
     await writeCatalog(catalog)
     return true
   })
