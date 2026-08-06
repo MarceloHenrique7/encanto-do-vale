@@ -31,7 +31,7 @@ test.after(() => {
   }
 })
 
-test('bloqueia inicializacao de producao com configuracao incompleta', () => {
+test('reporta configuracao incompleta sem derrubar toda a aplicacao', () => {
   process.env.NODE_ENV = 'production'
   for (const name of managedVariables.slice(1)) delete process.env[name]
 
@@ -39,7 +39,15 @@ test('bloqueia inicializacao de producao com configuracao incompleta', () => {
   assert.ok(errors.includes('DATABASE_URL'))
   assert.ok(errors.includes('MERCADO_PAGO_ACCESS_TOKEN'))
   assert.ok(errors.includes('TWILIO_VERIFY'))
-  assert.throws(assertProductionConfiguration, /Configuracao de producao invalida/)
+  const originalWarn = console.warn
+  const warnings = []
+  console.warn = (message) => warnings.push(String(message))
+  try {
+    assert.deepEqual(assertProductionConfiguration(), errors)
+  } finally {
+    console.warn = originalWarn
+  }
+  assert.equal(warnings.length, 1)
 })
 
 test('aceita configuracao de producao completa e coerente', () => {

@@ -37,11 +37,12 @@ export function productionConfigurationErrors() {
 }
 
 export function assertProductionConfiguration() {
-  if (process.env.NODE_ENV !== 'production') return
+  if (process.env.NODE_ENV !== 'production') return []
   const errors = productionConfigurationErrors()
   if (errors.length) {
-    throw new Error(
-      `Configuracao de producao invalida ou ausente: ${errors.join(', ')}`,
+    console.warn(
+      `Configuracao de producao incompleta; recursos relacionados permanecerao indisponiveis: ${errors.join(', ')}`,
     )
   }
+  return errors
 }
