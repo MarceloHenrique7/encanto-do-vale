@@ -4,6 +4,7 @@ export async function getPublicStoreSettings(_request, response) {
   const settings = await getStoreSettings()
   return response.json({
     minimumOrder: settings.minimumOrder,
+    features: settings.features,
     minimumDeliveryFee: settings.deliveryZones.length
       ? Math.min(...settings.deliveryZones.map((zone) => zone.deliveryFee))
       : 0,

@@ -1,5 +1,14 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { FiAward, FiCheck, FiGift, FiPlus, FiSearch } from 'react-icons/fi'
+import {
+  FiAward,
+  FiCheck,
+  FiClock,
+  FiGift,
+  FiPlus,
+  FiSearch,
+  FiTrendingUp,
+  FiUsers,
+} from 'react-icons/fi'
 
 type Settings = {
   enabled: boolean
@@ -74,9 +83,15 @@ export default function LoyaltyManager() {
       if (!response.ok) throw new Error(data.error ?? 'Não foi possível carregar o clube.')
       setSettings(data.settings)
       setRewards(data.rewards ?? [])
-      setAccounts(data.accounts ?? [])
+      const nextAccounts: Account[] = data.accounts ?? []
+      setAccounts(nextAccounts)
       setTransactions(data.transactions ?? [])
       setRedemptions(data.redemptions ?? [])
+      setAdjustment((current) => ({
+        ...current,
+        customerId:
+          current.customerId || nextAccounts[0]?.customer_id || '',
+      }))
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Erro ao carregar.')
     }
@@ -86,12 +101,53 @@ export default function LoyaltyManager() {
     load()
   }, [])
 
+  const rankedAccounts = useMemo(
+    () =>
+      [...accounts].sort(
+        (first, second) =>
+          Number(second.current_balance) - Number(first.current_balance) ||
+          String(first.name ?? '').localeCompare(
+            String(second.name ?? ''),
+            'pt-BR',
+          ),
+      ),
+    [accounts],
+  )
+
   const filteredAccounts = useMemo(() => {
     const term = search.toLocaleLowerCase('pt-BR')
-    return accounts.filter((account) =>
+    return rankedAccounts.filter((account) =>
       `${account.name ?? ''} ${account.phone ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
     )
-  }, [accounts, search])
+  }, [rankedAccounts, search])
+  const rankByCustomer = useMemo(
+    () =>
+      new Map(
+        rankedAccounts.map((account, index) => [
+          account.customer_id,
+          index + 1,
+        ]),
+      ),
+    [rankedAccounts],
+  )
+  const selectedAccount =
+    rankedAccounts.find(
+      (account) => account.customer_id === adjustment.customerId,
+    ) ?? rankedAccounts[0]
+  const selectedTransactions = selectedAccount
+    ? transactions.filter(
+        (transaction) =>
+          transaction.customer_id === selectedAccount.customer_id,
+      )
+    : []
+  const earnedPoints = selectedTransactions
+    .filter((transaction) => transaction.points > 0)
+    .reduce((total, transaction) => total + transaction.points, 0)
+  const usedPoints = Math.abs(
+    selectedTransactions
+      .filter((transaction) => transaction.points < 0)
+      .reduce((total, transaction) => total + transaction.points, 0),
+  )
 
   async function saveSettings(event: FormEvent) {
     event.preventDefault()
@@ -138,7 +194,11 @@ export default function LoyaltyManager() {
     })
     const data = await response.json()
     if (!response.ok) return setError(data.error)
-    setAdjustment({ customerId: '', points: '', description: '' })
+    setAdjustment((current) => ({
+      customerId: current.customerId,
+      points: '',
+      description: '',
+    }))
     setMessage('Ajuste registrado no histórico.')
     await load()
   }
@@ -210,16 +270,105 @@ export default function LoyaltyManager() {
       </section>
 
       <section className="loyalty-customerManager">
-        <header><div><strong>Saldos dos clientes</strong><small>Ajustes exigem uma justificativa e ficam registrados.</small></div><label><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome ou telefone" /></label></header>
+        <header><div><strong>Ranking de clientes</strong><small>Classificação pelo saldo de pontos disponível.</small></div><label><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome ou telefone" /></label></header>
+        {rankedAccounts.length ? (
+          <div className="loyalty-rankingPodium">
+            {rankedAccounts.slice(0, 3).map((account, index) => (
+              <button
+                type="button"
+                className={`is-position-${index + 1}${
+                  selectedAccount?.customer_id === account.customer_id
+                    ? ' is-selected'
+                    : ''
+                }`}
+                key={account.customer_id}
+                onClick={() =>
+                  setAdjustment({
+                    ...adjustment,
+                    customerId: account.customer_id,
+                  })
+                }
+              >
+                <span>#{index + 1}</span>
+                <b>{account.name?.charAt(0).toUpperCase() || 'C'}</b>
+                <strong>{account.name || 'Cliente'}</strong>
+                <small>{account.current_balance} pontos</small>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="loyalty-customerGrid">
-          <div>{filteredAccounts.map((account) => <button type="button" key={account.customer_id} onClick={() => setAdjustment({ ...adjustment, customerId: account.customer_id })}><span><strong>{account.name || 'Cliente'}</strong><small>{account.phone || account.customer_id}</small></span><b>{account.current_balance} pts</b></button>)}</div>
-          <form onSubmit={adjust}>
-            <strong>Ajuste manual</strong>
-            <select required value={adjustment.customerId} onChange={(event) => setAdjustment({ ...adjustment, customerId: event.target.value })}><option value="">Selecione o cliente</option>{accounts.map((account) => <option value={account.customer_id} key={account.customer_id}>{account.name || account.phone}</option>)}</select>
-            <input required type="number" placeholder="+50 ou -20" value={adjustment.points} onChange={(event) => setAdjustment({ ...adjustment, points: event.target.value })} />
-            <textarea required rows={2} placeholder="Justificativa obrigatória" value={adjustment.description} onChange={(event) => setAdjustment({ ...adjustment, description: event.target.value })} />
-            <button className="manager-primaryAction">Registrar ajuste</button>
-          </form>
+          <div className="loyalty-rankingList">
+            {filteredAccounts.map((account) => (
+              <button
+                type="button"
+                className={
+                  selectedAccount?.customer_id === account.customer_id
+                    ? 'is-active'
+                    : ''
+                }
+                key={account.customer_id}
+                onClick={() =>
+                  setAdjustment({
+                    ...adjustment,
+                    customerId: account.customer_id,
+                  })
+                }
+              >
+                <em>#{rankByCustomer.get(account.customer_id)}</em>
+                <span>
+                  <strong>{account.name || 'Cliente'}</strong>
+                  <small>{account.phone || account.customer_id}</small>
+                </span>
+                <b>{account.current_balance} pts</b>
+              </button>
+            ))}
+            {!filteredAccounts.length ? (
+              <p>Nenhum cliente encontrado.</p>
+            ) : null}
+          </div>
+          {selectedAccount ? (
+            <div className="loyalty-customerDetail">
+              <header>
+                <div>
+                  <span>{selectedAccount.name?.charAt(0).toUpperCase() || 'C'}</span>
+                  <div>
+                    <small>#{rankByCustomer.get(selectedAccount.customer_id)} no ranking</small>
+                    <h3>{selectedAccount.name || 'Cliente'}</h3>
+                    <p>{selectedAccount.phone}</p>
+                  </div>
+                </div>
+                <FiTrendingUp />
+              </header>
+              <div className="loyalty-customerMetrics">
+                <span><FiAward /><strong>{selectedAccount.current_balance}</strong><small>saldo disponível</small></span>
+                <span><FiClock /><strong>{selectedAccount.pending_balance}</strong><small>saldo pendente</small></span>
+                <span><FiTrendingUp /><strong>{earnedPoints}</strong><small>pontos recebidos</small></span>
+                <span><FiGift /><strong>{usedPoints}</strong><small>pontos utilizados</small></span>
+              </div>
+              <form onSubmit={adjust}>
+                <div>
+                  <FiUsers />
+                  <span><strong>Ajuste manual</strong><small>O registro ficará no histórico do cliente.</small></span>
+                </div>
+                <input required type="number" placeholder="+50 para crédito ou -20 para débito" value={adjustment.points} onChange={(event) => setAdjustment({ ...adjustment, points: event.target.value })} />
+                <textarea required rows={2} placeholder="Justificativa obrigatória" value={adjustment.description} onChange={(event) => setAdjustment({ ...adjustment, description: event.target.value })} />
+                <button className="manager-primaryAction">Registrar ajuste</button>
+              </form>
+              <section className="loyalty-customerTimeline">
+                <header><strong>Movimentações recentes</strong><small>{selectedTransactions.length} registro(s)</small></header>
+                {selectedTransactions.slice(0, 10).map((transaction) => (
+                  <article key={transaction.id}>
+                    <span><strong>{transaction.description}</strong><small>{transaction.order_id ? `Pedido #${transaction.order_id.slice(0, 8)}` : transaction.type}</small></span>
+                    <b className={transaction.points > 0 ? 'is-credit' : ''}>{transaction.points > 0 ? '+' : ''}{transaction.points}</b>
+                  </article>
+                ))}
+                {!selectedTransactions.length ? <p>Este cliente ainda não possui movimentações.</p> : null}
+              </section>
+            </div>
+          ) : (
+            <div className="loyalty-customerEmpty">Nenhum cliente cadastrado.</div>
+          )}
         </div>
       </section>
       <section className="loyalty-activity">

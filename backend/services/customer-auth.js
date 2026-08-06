@@ -10,7 +10,7 @@ import { findUserById } from './user-store.js'
 
 const scrypt = promisify(scryptCallback)
 const cookieName = 'encanto_customer'
-const sessionDurationInSeconds = 60 * 60 * 24 * 30
+const sessionDurationInSeconds = 60 * 60 * 24
 
 function sessionSecret() {
   return String(process.env.SESSION_SECRET ?? '')

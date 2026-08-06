@@ -7,7 +7,7 @@ import {
 import { formatCurrency, truncateText } from '@/lib/formatters'
 import { trackMetaEvent } from '@/lib/metaPixel'
 import type { Product } from '@/domain/catalog'
-import { FiArrowRight, FiPlus } from 'react-icons/fi'
+import { FiArrowRight, FiPlus, FiTag } from 'react-icons/fi'
 
 type CardapioProps = {
   products: Product[]
@@ -19,6 +19,19 @@ type CardapioProps = {
   ) => boolean
 }
 
+type CampaignHighlight = {
+  id: string
+  type: 'voucher' | 'coupon' | 'gift' | 'announcement'
+  name: string
+  headline: string
+  description: string
+  benefit: string
+  partnerName: string
+  imageSrc: string
+  publicCouponCode: string
+  endAt?: string
+}
+
 export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   const categories = useCatalogCategories()
   const promotions = useCatalogPromotions()
@@ -28,6 +41,22 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
   const [confirmingProductId, setConfirmingProductId] = useState<string | null>(null)
   const [selectedExtras, setSelectedExtras] = useState<Record<string, string[]>>({})
   const [cartError, setCartError] = useState('')
+  const [campaignHighlights, setCampaignHighlights] = useState<CampaignHighlight[]>([])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/campaign-highlights', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : { campaigns: [] })
+      .then((data) => {
+        if (Array.isArray(data.campaigns)) {
+          setCampaignHighlights(data.campaigns.slice(0, 2))
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCampaignHighlights([])
+      })
+    return () => controller.abort()
+  }, [])
 
   function formatProductPrice(product: Product): string {
     if (product.fulfillmentType === 'entrega-pronta') {
@@ -252,6 +281,41 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
 
   return (
     <main id="cardapio" className="menu-app">
+      {campaignHighlights.length ? (
+        <section
+          className={`campaign-heroHighlights is-${campaignHighlights.length}`}
+          aria-label="Campanhas em destaque"
+        >
+          <header>
+            <span>Acontecendo agora</span>
+            <small>{campaignHighlights.length === 1 ? '1 novidade' : '2 novidades'}</small>
+          </header>
+          <div>
+            {campaignHighlights.map((campaign) => (
+              <article className="campaign-heroCard" key={campaign.id}>
+                {campaign.imageSrc ? (
+                  <img src={campaign.imageSrc} alt="" loading="eager" decoding="async" />
+                ) : (
+                  <span className="campaign-heroCardPlaceholder"><FiTag /></span>
+                )}
+                <div>
+                  <small>{campaign.partnerName || 'Encanto do Vale'}</small>
+                  <h2>{campaign.headline || campaign.name}</h2>
+                  <p>{campaign.benefit || campaign.description}</p>
+                  <footer>
+                    {campaign.publicCouponCode ? (
+                      <code>Use {campaign.publicCouponCode}</code>
+                    ) : (
+                      <span>Oferta por tempo limitado</span>
+                    )}
+                    <a href="#encomende">Ver cardápio <FiArrowRight /></a>
+                  </footer>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="menu-workspace" id="encomende">
         <div className="catalog-heading">
           <div><span>Nosso cardápio</span><h1>O que você deseja pedir?</h1></div>
@@ -357,7 +421,7 @@ export default function Cardapio({ products, onAddToCart }: CardapioProps) {
                     )}
 
                     {product.isPromo ? (
-                      <span className="menu-card-badge">Promo</span>
+                      <span className="menu-card-badge">Oferta</span>
                     ) : null}
                   </span>
 

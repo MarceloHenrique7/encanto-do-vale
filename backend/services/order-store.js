@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { notifyOrderChange } from './order-events.js'
 import { query, shouldUsePostgres } from './postgres.js'
 import { processOrderLoyalty } from './loyalty-store.js'
+import {
+  processCompletedOrderCampaigns,
+  releaseCampaignCouponForOrder,
+} from './campaign-store.js'
 
 const serviceDirectory = path.dirname(fileURLToPath(import.meta.url))
 const defaultFile = path.resolve(serviceDirectory, '../data/orders.json')
@@ -105,10 +109,11 @@ export async function findOrder(orderId) {
   return database.orders.find((order) => order.id === orderId) ?? null
 }
 
-export async function listOrders() {
+export async function listOrders(limit = 500) {
   if (shouldUsePostgres()) {
     const result = await query(
-      'select order_data from orders order by created_at desc',
+      'select order_data from orders order by created_at desc limit $1',
+      [limit],
     )
     return result.rows.map((row) => row.order_data)
   }
@@ -118,6 +123,22 @@ export async function listOrders() {
   return [...database.orders].sort(
     (first, second) =>
       new Date(second.created_at).getTime() - new Date(first.created_at).getTime(),
+  ).slice(0, limit)
+}
+
+export async function listCompletedOrders() {
+  if (shouldUsePostgres()) {
+    const result = await query(
+      `select order_data
+       from orders
+       where restaurant_status = 'completed'
+       order by created_at desc`,
+    )
+    return result.rows.map((row) => row.order_data)
+  }
+
+  return (await listOrders()).filter(
+    (order) => order.restaurant_status === 'completed',
   )
 }
 
@@ -128,6 +149,7 @@ export async function listCustomerOrders(userId, limit = 20) {
         select order_data
         from orders
         where user_id = $1
+          and restaurant_status = 'completed'
         order by created_at desc
         limit $2
       `,
@@ -139,7 +161,10 @@ export async function listCustomerOrders(userId, limit = 20) {
   await writeQueue
   const database = await readDatabase()
   return database.orders
-    .filter((order) => order.user_id === userId)
+    .filter(
+      (order) =>
+        order.user_id === userId && order.restaurant_status === 'completed',
+    )
     .sort(
       (first, second) =>
         new Date(second.created_at).getTime() -
@@ -150,47 +175,80 @@ export async function listCustomerOrders(userId, limit = 20) {
 
 export async function updateOrder(orderId, changes) {
   if (shouldUsePostgres()) {
-    const existing = await findOrder(orderId)
-    if (!existing) return null
-
-    const updated = {
-      ...existing,
+    const patch = {
       ...changes,
       updated_at: new Date().toISOString(),
     }
-
-    await query(
+    const result = await query(
       `
         update orders
         set
-          user_id = $2,
-          status = $3,
-          restaurant_status = $4,
-          payment_status = $5,
-          payment_method = $6,
-          payment_id = $7,
-          status_detail = $8,
-          payment_attempts = $9,
-          order_data = $10::jsonb,
-          updated_at = $11
+          user_id = case
+            when $2::jsonb ? 'user_id'
+              then nullif($2::jsonb ->> 'user_id', '')::uuid
+            else user_id
+          end,
+          status = case
+            when $2::jsonb ? 'status' then $2::jsonb ->> 'status'
+            else status
+          end,
+          restaurant_status = case
+            when $2::jsonb ? 'restaurant_status'
+              then $2::jsonb ->> 'restaurant_status'
+            else restaurant_status
+          end,
+          payment_status = case
+            when $2::jsonb ? 'payment_status'
+              then $2::jsonb ->> 'payment_status'
+            else payment_status
+          end,
+          payment_method = case
+            when $2::jsonb ? 'payment_method'
+              then $2::jsonb ->> 'payment_method'
+            else payment_method
+          end,
+          payment_id = case
+            when $2::jsonb ? 'payment_id' then $2::jsonb ->> 'payment_id'
+            else payment_id
+          end,
+          status_detail = case
+            when $2::jsonb ? 'status_detail'
+              then $2::jsonb ->> 'status_detail'
+            else status_detail
+          end,
+          payment_attempts = case
+            when $2::jsonb ? 'payment_attempts'
+              then ($2::jsonb ->> 'payment_attempts')::integer
+            else payment_attempts
+          end,
+          order_data = order_data || $2::jsonb,
+          updated_at = ($2::jsonb ->> 'updated_at')::timestamptz
         where id = $1
+        returning order_data
       `,
-      [
-        orderId,
-        updated.user_id,
-        updated.status,
-        updated.restaurant_status ?? null,
-        updated.payment_status ?? null,
-        updated.payment_method ?? null,
-        updated.payment_id ?? null,
-        updated.status_detail ?? null,
-        updated.payment_attempts ?? 0,
-        JSON.stringify(updated),
-        updated.updated_at,
-      ],
+      [orderId, JSON.stringify(patch)],
     )
+    const updated = result.rows[0]?.order_data ?? null
+    if (!updated) return null
     notifyOrderChange(updated)
     await processOrderLoyalty(updated)
+    void processCompletedOrderCampaigns(updated).catch((error) => {
+      console.error('Falha ao distribuir campanha do pedido', {
+        orderId,
+        message: error?.message,
+      })
+    })
+    if (
+      updated.status === 'failed' ||
+      updated.restaurant_status === 'cancelled'
+    ) {
+      void releaseCampaignCouponForOrder(orderId).catch((error) => {
+        console.error('Falha ao liberar cupom do pedido cancelado', {
+          orderId,
+          message: error?.message,
+        })
+      })
+    }
     return updated
   }
 
@@ -210,7 +268,61 @@ export async function updateOrder(orderId, changes) {
     await writeDatabase(database)
     notifyOrderChange(database.orders[index])
     await processOrderLoyalty(database.orders[index])
+    void processCompletedOrderCampaigns(database.orders[index]).catch((error) => {
+      console.error('Falha ao distribuir campanha do pedido', {
+        orderId,
+        message: error?.message,
+      })
+    })
+    if (
+      database.orders[index].status === 'failed' ||
+      database.orders[index].restaurant_status === 'cancelled'
+    ) {
+      void releaseCampaignCouponForOrder(orderId).catch((error) => {
+        console.error('Falha ao liberar cupom do pedido cancelado', {
+          orderId,
+          message: error?.message,
+        })
+      })
+    }
     return database.orders[index]
+  })
+}
+
+export async function incrementPaymentAttempts(orderId) {
+  if (shouldUsePostgres()) {
+    const updatedAt = new Date().toISOString()
+    const result = await query(
+      `
+        update orders
+        set
+          payment_attempts = payment_attempts + 1,
+          order_data = jsonb_set(
+            jsonb_set(
+              order_data,
+              '{payment_attempts}',
+              to_jsonb(payment_attempts + 1)
+            ),
+            '{updated_at}',
+            to_jsonb($2::text)
+          ),
+          updated_at = $2::timestamptz
+        where id = $1
+        returning payment_attempts
+      `,
+      [orderId, updatedAt],
+    )
+    return result.rows[0]?.payment_attempts ?? null
+  }
+
+  return serializedWrite(async () => {
+    const database = await readDatabase()
+    const order = database.orders.find((entry) => entry.id === orderId)
+    if (!order) return null
+    order.payment_attempts = (order.payment_attempts ?? 0) + 1
+    order.updated_at = new Date().toISOString()
+    await writeDatabase(database)
+    return order.payment_attempts
   })
 }
 

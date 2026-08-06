@@ -1,25 +1,20 @@
 import { useEffect, useState } from 'react'
-import { FiAward, FiMapPin, FiShoppingBag, FiUser } from 'react-icons/fi'
+import { FiGift, FiMapPin, FiUser } from 'react-icons/fi'
 
 import { storeConfig } from '@/config/store'
-import { formatCurrency } from '@/lib/formatters'
 import { getStoreHoursStatus } from '@/lib/storeHours'
 import { useStoreSettings } from '@/features/settings/storeSettingsStore'
 
 type HeaderProps = {
-  cartCount: number
-  cartTotal: number
-  onOpenCart: () => void
   customerName?: string
   onOpenProfile: () => void
+  onOpenRewards: () => void
 }
 
 export default function Header({
-  cartCount,
-  cartTotal,
-  onOpenCart,
   customerName,
   onOpenProfile,
+  onOpenRewards,
 }: HeaderProps) {
   const firstName = customerName?.split(' ')[0]
   const settings = useStoreSettings()
@@ -59,6 +54,22 @@ export default function Header({
 
         <div className="header-customerActions">
           <button
+            className="header-rewards"
+            type="button"
+            onClick={onOpenRewards}
+            aria-label={
+              customerName
+                ? `Abrir meus pontos e recompensas${points !== null ? `, saldo de ${points} pontos` : ''}`
+                : 'Entrar para ver pontos e resgatar presentes'
+            }
+          >
+            <FiGift />
+            <span>
+              <small>{customerName ? 'Recompensas' : 'Ganhe pontos'}</small>
+              <strong>{points !== null ? `${points} pontos` : 'Presentes'}</strong>
+            </span>
+          </button>
+          <button
             className="header-profile"
             type="button"
             onClick={onOpenProfile}
@@ -66,22 +77,6 @@ export default function Header({
           >
             <FiUser />
             <span>{firstName ? `Olá, ${firstName}` : 'Entrar'}</span>
-            {points !== null ? <b className="header-points"><FiAward /> {points}</b> : null}
-          </button>
-          <button
-            className="header-cart"
-            type="button"
-            onClick={onOpenCart}
-            aria-label={`Abrir carrinho com ${cartCount} itens`}
-          >
-            <FiShoppingBag />
-            <span>
-              <small>
-                {cartCount ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'}` : 'Carrinho'}
-              </small>
-              <strong>{formatCurrency(cartTotal)}</strong>
-            </span>
-            {cartCount > 0 ? <b>{cartCount}</b> : null}
           </button>
         </div>
       </nav>

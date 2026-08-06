@@ -186,25 +186,26 @@ export async function getCustomerLoyalty(customerId) {
       [customerId],
     )
     await expirePostgres(client, customerId)
-    const [account, transactions, rewards, redemptions] = await Promise.all([
-      client.query('select * from loyalty_accounts where customer_id = $1', [customerId]),
-      client.query(
-        'select * from loyalty_transactions where customer_id = $1 order by created_at desc limit 100',
-        [customerId],
-      ),
-      client.query(
-        `select * from loyalty_rewards
-         where active = true
-           and (valid_from is null or valid_from <= now())
-           and (valid_until is null or valid_until >= now())
-           and (stock is null or stock > 0)
-         order by points_cost`,
-      ),
-      client.query(
-        'select * from loyalty_redemptions where customer_id = $1 order by created_at desc',
-        [customerId],
-      ),
-    ])
+    const account = await client.query(
+      'select * from loyalty_accounts where customer_id = $1',
+      [customerId],
+    )
+    const transactions = await client.query(
+      'select * from loyalty_transactions where customer_id = $1 order by created_at desc limit 100',
+      [customerId],
+    )
+    const rewards = await client.query(
+      `select * from loyalty_rewards
+       where active = true
+         and (valid_from is null or valid_from <= now())
+         and (valid_until is null or valid_until >= now())
+         and (stock is null or stock > 0)
+       order by points_cost`,
+    )
+    const redemptions = await client.query(
+      'select * from loyalty_redemptions where customer_id = $1 order by created_at desc limit 100',
+      [customerId],
+    )
     await client.query('commit')
     return {
       settings,
@@ -660,8 +661,15 @@ export async function getAdminLoyalty() {
       getPool().query(`select data from loyalty_settings where key = 'main'`),
       getPool().query('select * from loyalty_rewards order by points_cost'),
       getPool().query(
-        `select a.*, c.name, c.phone from loyalty_accounts a
-         join customers c on c.id = a.customer_id order by a.current_balance desc`,
+        `select
+           c.id as customer_id,
+           coalesce(a.current_balance, 0)::int as current_balance,
+           coalesce(a.pending_balance, 0)::int as pending_balance,
+           c.name,
+           c.phone
+         from customers c
+         left join loyalty_accounts a on a.customer_id = c.id
+         order by coalesce(a.current_balance, 0) desc, c.name`,
       ),
       getPool().query('select * from loyalty_transactions order by created_at desc limit 200'),
       getPool().query('select * from loyalty_redemptions order by created_at desc limit 200'),
@@ -677,12 +685,24 @@ export async function getAdminLoyalty() {
   await writeQueue
   const database = await readDatabase()
   const users = await listUsers()
+  const accountMap = new Map(
+    database.accounts.map((account) => [account.customer_id, account]),
+  )
   return {
     ...database,
-    accounts: database.accounts.map((account) => {
-      const user = users.find((item) => item.id === account.customer_id)
-      return { ...account, name: user?.name, phone: user?.phone }
-    }),
+    accounts: users
+      .map((user) => ({
+        customer_id: user.id,
+        current_balance: accountMap.get(user.id)?.current_balance ?? 0,
+        pending_balance: accountMap.get(user.id)?.pending_balance ?? 0,
+        name: user.name,
+        phone: user.phone,
+      }))
+      .sort(
+        (first, second) =>
+          second.current_balance - first.current_balance ||
+          String(first.name).localeCompare(String(second.name), 'pt-BR'),
+      ),
   }
 }
 

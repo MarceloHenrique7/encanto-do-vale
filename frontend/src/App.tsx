@@ -59,7 +59,7 @@ function StoreExperience({
   )
   const cart = useCart(availableProducts)
   const [checkoutStatus, setCheckoutStatus] = useState(getCheckoutStatus)
-  const [profileOpen, setProfileOpen] = useState(false)
+  const [accountView, setAccountView] = useState<'profile' | 'rewards' | null>(null)
 
   if (orderPageMatch) {
     return (
@@ -71,12 +71,13 @@ function StoreExperience({
 
   return (
     <div className="page-shell">
-      {user && profileOpen ? (
+      {user && accountView ? (
         <Suspense fallback={null}>
           <CustomerProfile
             user={user}
             isOpen
-            onClose={() => setProfileOpen(false)}
+            initialView={accountView}
+            onClose={() => setAccountView(null)}
             onUpdate={onUserUpdate}
           />
         </Suspense>
@@ -90,15 +91,16 @@ function StoreExperience({
         whatsappPhone={storeConfig.whatsappPhone}
         customerAccount={user}
         onCustomerAccount={onUserUpdate}
-        showTrigger={false}
+        onLoginRequest={onLoginRequest}
       />
       <Header
-        cartCount={cart.count}
-        cartTotal={cart.subtotal}
-        onOpenCart={cart.open}
         customerName={user?.name}
         onOpenProfile={() => {
-          if (user) setProfileOpen(true)
+          if (user) setAccountView('profile')
+          else onLoginRequest()
+        }}
+        onOpenRewards={() => {
+          if (user) setAccountView('rewards')
           else onLoginRequest()
         }}
       />

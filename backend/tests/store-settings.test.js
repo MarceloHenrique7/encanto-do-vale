@@ -28,6 +28,12 @@ test('gestor altera horários, pedido mínimo, bairros e taxas', async () => {
   )
   const update = await manager.put('/api/admin/store-settings').send({
     minimumOrder: 25,
+    features: {
+      orderingEnabled: true,
+      onlinePaymentEnabled: true,
+      cardOnDeliveryEnabled: false,
+      cashOnDeliveryEnabled: true,
+    },
     weeklyHours,
     deliveryZones: [
       { neighborhood: 'Bairro Teste', distanceKm: 4.5, deliveryFee: 8.75, aliases: ['teste'] },
@@ -35,10 +41,12 @@ test('gestor altera horários, pedido mínimo, bairros e taxas', async () => {
   })
   assert.equal(update.status, 200)
   assert.equal(update.body.settings.minimumOrder, 25)
+  assert.equal(update.body.settings.features.cashOnDeliveryEnabled, true)
   assert.equal(update.body.settings.deliveryZones[0].deliveryFee, 8.75)
 
   const publicSettings = await request(app).get('/api/store-settings')
   assert.equal(publicSettings.body.minimumOrder, 25)
+  assert.equal(publicSettings.body.features.cardOnDeliveryEnabled, false)
   assert.equal(publicSettings.body.deliveryZones, undefined)
 
   const delivery = await request(app).post('/api/calculate-delivery').send({ neighborhood: 'teste' })

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { storeConfig } from '@/config/store'
-import { formatCurrency } from '@/lib/formatters'
+import { formatCurrency, formatPhone } from '@/lib/formatters'
+import {
+  calculateDeliveryEstimateMinutes,
+  formatDeliveryEstimate,
+  formatEstimatedArrival,
+} from '@/lib/deliveryEstimate'
 import { trackMetaPurchaseOnce } from '@/lib/metaPixel'
 
 type RestaurantStatus =
@@ -24,12 +29,18 @@ type Order = {
   status_detail?: string | null
   total: number
   subtotal: number
+  campaign_discount?: number
   delivery_fee: number
   delivery_method: 'pickup' | 'delivery'
+  distanceKm?: number
+  estimated_delivery_minutes?: number
+  notes?: string
   created_at: string
+  updated_at?: string
   customer: {
     name: string
     phone: string
+    email?: string
     address: string
     number: string
     neighborhood: string
@@ -259,6 +270,13 @@ export default function OrderStatusPage({ orderId }: { orderId: string }) {
       : order.payment_method === 'card-delivery'
         ? 'Cartao na entrega'
         : 'Pagamento online'
+  const estimateMinutes =
+    order.estimated_delivery_minutes ??
+    calculateDeliveryEstimateMinutes(order.distanceKm)
+  const estimatedArrival = formatEstimatedArrival(
+    order.created_at,
+    estimateMinutes,
+  )
 
   return (
     <main className="order-trackingPage">
@@ -280,6 +298,22 @@ export default function OrderStatusPage({ orderId }: { orderId: string }) {
           </span>
           <h1>{copy.title}</h1>
           <p>{copy.text}</p>
+
+          <div className="order-estimatePanel">
+            <div>
+              <span>Previsão de entrega</span>
+              <strong>{formatDeliveryEstimate(estimateMinutes)}</strong>
+            </div>
+            <div>
+              <span>Distância</span>
+              <strong>
+                {Number(order.distanceKm ?? 0).toLocaleString('pt-BR')} km
+              </strong>
+            </div>
+            {estimatedArrival ? (
+              <small>Horário estimado de chegada: até {estimatedArrival}</small>
+            ) : null}
+          </div>
 
           <div className="order-paymentPanel">
             <div>
@@ -368,26 +402,64 @@ export default function OrderStatusPage({ orderId }: { orderId: string }) {
               <span>Entrega</span>
               <span>{formatCurrency(order.delivery_fee)}</span>
             </div>
+            {order.campaign_discount ? (
+              <div className="order-summaryDiscount">
+                <span>Desconto da campanha</span>
+                <span>- {formatCurrency(order.campaign_discount)}</span>
+              </div>
+            ) : null}
             <div className="order-summaryTotal">
               <strong>Total</strong>
               <strong>{formatCurrency(order.total)}</strong>
             </div>
           </div>
 
-          <div className="order-deliveryDetails">
-            <span>
-              Endereco de entrega
-            </span>
-            <strong>
-              {order.customer.address
-                ? `${order.customer.address}, ${order.customer.number}`
-                : 'Entrega combinada com a loja'}
-            </strong>
-            {order.customer.neighborhood ? (
+          <div className="order-informationGrid">
+            <div className="order-informationItem order-informationItem--wide">
+              <span>Cliente</span>
+              <strong>{order.customer.name}</strong>
+              <p>{formatPhone(order.customer.phone)} · WhatsApp</p>
+            </div>
+            <div className="order-informationItem">
+              <span>Pagamento</span>
+              <strong>{paymentLabel}</strong>
               <p>
-                {order.customer.neighborhood}
-                {order.customer.complement ? ` - ${order.customer.complement}` : ''}
+                {order.payment_method === 'online'
+                  ? order.status === 'paid'
+                    ? 'Aprovado'
+                    : 'Aguardando confirmação'
+                  : 'Pagamento na entrega'}
               </p>
+            </div>
+            <div className="order-informationItem">
+              <span>Entrega estimada</span>
+              <strong>{formatDeliveryEstimate(estimateMinutes)}</strong>
+              <p>
+                {Number(order.distanceKm ?? 0).toLocaleString('pt-BR')} km
+                {estimatedArrival ? ` · até ${estimatedArrival}` : ''}
+              </p>
+            </div>
+            <div className="order-informationItem order-informationItem--wide">
+              <span>Endereço de entrega</span>
+              <strong>
+                {order.customer.address
+                  ? `${order.customer.address}, ${order.customer.number}`
+                  : 'Entrega combinada com a loja'}
+              </strong>
+              {order.customer.neighborhood ? (
+                <p>
+                  {order.customer.neighborhood}
+                  {order.customer.complement
+                    ? ` · ${order.customer.complement}`
+                    : ' · Sem complemento'}
+                </p>
+              ) : null}
+            </div>
+            {order.notes ? (
+              <div className="order-informationItem order-informationItem--wide order-informationItem--notes">
+                <span>Observações do pedido</span>
+                <strong>{order.notes}</strong>
+              </div>
             ) : null}
           </div>
         </aside>

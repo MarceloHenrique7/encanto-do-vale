@@ -24,6 +24,12 @@ function defaultFee(distanceKm) {
 
 export const defaultStoreSettings = Object.freeze({
   minimumOrder: 0,
+  features: {
+    orderingEnabled: true,
+    onlinePaymentEnabled: true,
+    cardOnDeliveryEnabled: true,
+    cashOnDeliveryEnabled: false,
+  },
   weeklyHours: defaultWeeklyHours,
   deliveryZones: defaultDeliveryZones.map((zone) => ({
     neighborhood: zone.neighborhood,
@@ -53,6 +59,12 @@ function timeMinutes(value) {
 
 function normalizeSettings(input) {
   const minimumOrder = Number(input?.minimumOrder)
+  const features = {
+    orderingEnabled: input?.features?.orderingEnabled !== false,
+    onlinePaymentEnabled: input?.features?.onlinePaymentEnabled !== false,
+    cardOnDeliveryEnabled: input?.features?.cardOnDeliveryEnabled !== false,
+    cashOnDeliveryEnabled: input?.features?.cashOnDeliveryEnabled === true,
+  }
   const hours = Array.isArray(input?.weeklyHours) ? input.weeklyHours : []
   const zones = Array.isArray(input?.deliveryZones) ? input.deliveryZones : []
   if (!Number.isFinite(minimumOrder) || minimumOrder < 0 || minimumOrder > 100000) {
@@ -101,8 +113,21 @@ function normalizeSettings(input) {
   })
   const uniqueNames = new Set(deliveryZones.map((zone) => zone.neighborhood.toLocaleLowerCase('pt-BR')))
   if (uniqueNames.size !== deliveryZones.length) throw new Error('Existem bairros repetidos.')
+  if (
+    features.orderingEnabled &&
+    !features.onlinePaymentEnabled &&
+    !features.cardOnDeliveryEnabled &&
+    !features.cashOnDeliveryEnabled
+  ) {
+    throw new Error('Ative pelo menos uma forma de pagamento para receber pedidos.')
+  }
 
-  return { minimumOrder: Number(minimumOrder.toFixed(2)), weeklyHours, deliveryZones }
+  return {
+    minimumOrder: Number(minimumOrder.toFixed(2)),
+    features,
+    weeklyHours,
+    deliveryZones,
+  }
 }
 
 async function readSettings() {

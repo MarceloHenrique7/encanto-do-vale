@@ -16,6 +16,7 @@ import { getStoreSettings } from '../services/store-settings.js'
 import {
   createOrder,
   findOrder,
+  incrementPaymentAttempts,
   listCustomerOrders,
   updateOrder,
 } from '../services/order-store.js'
@@ -28,8 +29,17 @@ import {
   normalizeBrazilianPhone,
   publicUser,
 } from '../services/customer-auth.js'
-import { upsertVerifiedUser } from '../services/user-store.js'
+import {
+  findUserByPhone,
+  upsertVerifiedUser,
+} from '../services/user-store.js'
 import { applyRedemption } from '../services/loyalty-store.js'
+import {
+  claimCampaignCoupon,
+  releaseCampaignCouponForOrder,
+} from '../services/campaign-store.js'
+import { calculateDeliveryEstimateMinutes } from '../utils/deliveryEstimate.js'
+import { upsertCustomerAddress } from '../services/address-store.js'
 
 function publicOrder(order) {
   return {
@@ -49,8 +59,14 @@ function publicOrder(order) {
     deliveryFee: order.deliveryFee ?? order.delivery_fee,
     neighborhood: order.neighborhood ?? order.customer?.neighborhood ?? '',
     distanceKm: order.distanceKm ?? 0,
+    estimated_delivery_minutes:
+      order.estimated_delivery_minutes ??
+      calculateDeliveryEstimateMinutes(order.distanceKm),
     subtotal: order.subtotal,
+    campaign_discount: order.campaign_discount ?? 0,
+    campaign_coupon: order.campaign_coupon ?? null,
     total: order.total,
+    notes: order.notes ?? '',
     created_at: order.created_at,
     updated_at: order.updated_at,
   }
@@ -70,7 +86,12 @@ function cleanCustomer(body) {
 }
 
 export async function postOrder(request, response) {
-  await getStoreSettings()
+  const settings = await getStoreSettings()
+  if (!settings.features.orderingEnabled) {
+    return response.status(409).json({
+      error: 'Os pedidos online estão temporariamente desativados.',
+    })
+  }
   const storeHours = getStoreHoursStatus()
   if (!storeHours.isOpen) {
     return response.status(409).json({
@@ -93,6 +114,9 @@ export async function postOrder(request, response) {
   }
   if (customer.phone.length < 10) {
     return response.status(400).json({ error: 'Informe um WhatsApp válido.' })
+  }
+  if (!normalizedPhone) {
+    return response.status(400).json({ error: 'Informe um WhatsApp válido com DDD.' })
   }
   if (
     deliveryMethod === 'delivery' &&
@@ -120,13 +144,26 @@ export async function postOrder(request, response) {
 
   const now = new Date().toISOString()
   const paymentMethod = body.payment_method ?? 'online'
-  if (!['online', 'card-delivery'].includes(paymentMethod)) {
+  const enabledPaymentMethods = {
+    online: settings.features.onlinePaymentEnabled,
+    'card-delivery': settings.features.cardOnDeliveryEnabled,
+    'cash-delivery': settings.features.cashOnDeliveryEnabled,
+  }
+  if (!enabledPaymentMethods[paymentMethod]) {
     return response.status(400).json({
       error: 'Esta forma de pagamento nao esta disponivel.',
     })
   }
   if (normalized.deliveryMethod === 'delivery') {
     customer.neighborhood = normalized.neighborhood
+  }
+
+  if (!sessionUser && (await findUserByPhone(normalizedPhone))) {
+    return response.status(409).json({
+      code: 'CUSTOMER_LOGIN_REQUIRED',
+      error:
+        'Este WhatsApp já possui cadastro. Entre na sua conta antes de finalizar o pedido.',
+    })
   }
 
   const user =
@@ -140,8 +177,25 @@ export async function postOrder(request, response) {
   }
 
   const subtotal = normalized.subtotal
+  const orderId = randomUUID()
+  const campaignCode = sanitizeText(body.campaign_code, 40).toUpperCase()
+  let campaignCoupon = null
+  if (campaignCode) {
+    try {
+      campaignCoupon = await claimCampaignCoupon({
+        customerId: user.id,
+        code: campaignCode,
+        subtotal,
+        deliveryFee: normalized.deliveryFee,
+        orderId,
+      })
+    } catch (error) {
+      return response.status(409).json({ error: error.message })
+    }
+  }
+  const campaignDiscount = campaignCoupon?.discount ?? 0
   const order = {
-    id: randomUUID(),
+    id: orderId,
     user_id: user.id,
     status: 'pending',
     restaurant_status:
@@ -165,14 +219,51 @@ export async function postOrder(request, response) {
     deliveryFee: normalized.deliveryFee,
     neighborhood: normalized.neighborhood,
     distanceKm: normalized.distanceKm,
+    estimated_delivery_minutes: calculateDeliveryEstimateMinutes(
+      normalized.distanceKm,
+    ),
     subtotal,
-    total: normalized.total,
+    campaign_discount: campaignDiscount,
+    campaign_coupon: campaignCoupon
+      ? {
+          campaign_id: campaignCoupon.campaignId,
+          campaign_name: campaignCoupon.campaignName,
+          code: campaignCoupon.code,
+          discount_type: campaignCoupon.discountType,
+        }
+      : null,
+    total: Math.max(
+      0,
+      Math.round((normalized.total - campaignDiscount) * 100) / 100,
+    ),
     notes: sanitizeText(body.notes, 500),
     created_at: now,
     updated_at: now,
   }
 
-  await createOrder(order)
+  try {
+    await createOrder(order)
+  } catch (error) {
+    await releaseCampaignCouponForOrder(order.id)
+    throw error
+  }
+
+  try {
+    await upsertCustomerAddress(user.id, {
+      label: sanitizeText(body.address_label, 30) || 'Casa',
+      recipientName: customer.name,
+      phone: customer.phone,
+      address: customer.address,
+      number: customer.number,
+      neighborhood: customer.neighborhood,
+      complement: customer.complement,
+    })
+  } catch (error) {
+    console.error('Falha ao salvar endereço do pedido', {
+      orderId: order.id,
+      message: error?.message,
+    })
+  }
 
   const rewardCode = sanitizeText(body.reward_code, 40).toUpperCase()
   if (rewardCode) {
@@ -223,21 +314,40 @@ function normalizePublicUrl(value) {
   try {
     const url = new URL(rawValue)
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return ''
+    const hostname = url.hostname.toLowerCase()
+    const privateIpv4 =
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      privateIpv4
+    ) {
+      return ''
+    }
     return url.toString().replace(/\/$/, '')
   } catch {
     return ''
   }
 }
 
-function publicBackendUrl(request) {
-  return (
+export function paymentNotificationUrl(request) {
+  const backendUrl =
     normalizePublicUrl(process.env.BACKEND_URL) ||
+    normalizePublicUrl(process.env.PUBLIC_SITE_URL) ||
     normalizePublicUrl(process.env.RENDER_EXTERNAL_URL) ||
     normalizePublicUrl(`${request.protocol}://${request.get('host')}`)
-  )
+
+  return backendUrl
+    ? `${backendUrl}/api/webhooks/mercadopago`
+    : ''
 }
 
-function paymentBodyFrom(order, formData, request) {
+export function paymentBodyFrom(order, formData, request) {
   const paymentMethodId = sanitizeText(formData.payment_method_id, 80)
   const payer = formData.payer ?? {}
   const email = sanitizeText(payer.email, 120)
@@ -264,7 +374,7 @@ function paymentBodyFrom(order, formData, request) {
     throw error
   }
 
-  const backendUrl = publicBackendUrl(request)
+  const notificationUrl = paymentNotificationUrl(request)
 
   return {
     transaction_amount: order.total,
@@ -282,9 +392,7 @@ function paymentBodyFrom(order, formData, request) {
           : undefined,
     },
     external_reference: order.id,
-    notification_url: backendUrl
-      ? `${backendUrl}/api/webhooks/mercadopago`
-      : undefined,
+    ...(notificationUrl ? { notification_url: notificationUrl } : {}),
     metadata: {
       order_id: order.id,
       customer_phone: order.customer.phone,
@@ -302,6 +410,12 @@ function paymentBodyFrom(order, formData, request) {
 }
 
 export async function postProcessPayment(request, response) {
+  const settings = await getStoreSettings()
+  if (!settings.features.orderingEnabled || !settings.features.onlinePaymentEnabled) {
+    return response.status(409).json({
+      error: 'O pagamento online está temporariamente desativado.',
+    })
+  }
   const orderId = sanitizeText(request.body?.order_id, 80)
   const formData = request.body?.formData ?? {}
   const order = await expirePendingOrder(await findOrder(orderId))
@@ -329,8 +443,12 @@ export async function postProcessPayment(request, response) {
     return response.status(400).json({ error: error.message })
   }
 
-  const attempt = (order.payment_attempts ?? 0) + 1
-  await updateOrder(order.id, { payment_attempts: attempt })
+  const attempt = await incrementPaymentAttempts(order.id)
+  if (!attempt) {
+    return response.status(409).json({
+      error: 'O pedido não está mais disponível para pagamento.',
+    })
+  }
 
   try {
     const payment = await createMercadoPagoPayment(
@@ -424,7 +542,20 @@ export async function postMercadoPagoWebhook(request, response) {
     })
 
     if (order) {
-      const orderStatus = mapPaymentStatus(payment.status)
+      const isCurrentPayment =
+        !order.payment_id || String(payment.id) === String(order.payment_id)
+      if (order.status === 'paid' && !isCurrentPayment) {
+        return response.status(200).json({ received: true })
+      }
+      const mappedStatus = mapPaymentStatus(payment.status)
+      const shouldPreserveApprovedOrder =
+        order.status === 'paid' &&
+        (payment.status === 'approved' ||
+          payment.status === 'pending' ||
+          payment.status === 'in_process')
+      const orderStatus = shouldPreserveApprovedOrder
+        ? 'paid'
+        : mappedStatus
       const restaurantStatus =
         orderStatus === 'paid' &&
         (!order.restaurant_status ||

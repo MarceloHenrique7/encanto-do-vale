@@ -4,7 +4,45 @@ import { formatCurrency } from '@/lib/formatters'
 
 type WeeklyHour = { day: number; label: string; open: string; close: string; closed: boolean }
 type DeliveryZone = { neighborhood: string; distanceKm: number; deliveryFee: number; aliases: string[] }
-type Settings = { minimumOrder: number; weeklyHours: WeeklyHour[]; deliveryZones: DeliveryZone[] }
+type Features = {
+  orderingEnabled: boolean
+  onlinePaymentEnabled: boolean
+  cardOnDeliveryEnabled: boolean
+  cashOnDeliveryEnabled: boolean
+}
+type Settings = {
+  minimumOrder: number
+  features: Features
+  weeklyHours: WeeklyHour[]
+  deliveryZones: DeliveryZone[]
+}
+
+const featureOptions: Array<{
+  key: keyof Features
+  title: string
+  description: string
+}> = [
+  {
+    key: 'orderingEnabled',
+    title: 'Receber pedidos pelo site',
+    description: 'Desative para pausar novos pedidos sem tirar o cardápio do ar.',
+  },
+  {
+    key: 'onlinePaymentEnabled',
+    title: 'Pix e cartão online',
+    description: 'Permite pagamentos processados online pelo Mercado Pago.',
+  },
+  {
+    key: 'cardOnDeliveryEnabled',
+    title: 'Cartão na entrega',
+    description: 'O cliente paga na maquininha ao receber o pedido.',
+  },
+  {
+    key: 'cashOnDeliveryEnabled',
+    title: 'Dinheiro na entrega',
+    description: 'O cliente paga em dinheiro ao receber o pedido.',
+  },
+]
 
 export default function StoreSettingsManager() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -40,6 +78,13 @@ export default function StoreSettingsManager() {
     }))
   }
 
+  function updateFeature(key: keyof Features, enabled: boolean) {
+    setSettings((current) => current && ({
+      ...current,
+      features: { ...current.features, [key]: enabled },
+    }))
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault()
     if (!settings) return
@@ -68,7 +113,7 @@ export default function StoreSettingsManager() {
   return (
     <form className="store-settingsManager" onSubmit={save}>
       <header className="store-settingsHero">
-        <div><span>Operação da loja</span><h1>Configurações</h1><p>Horários, pedido mínimo e áreas de entrega em um só lugar.</p></div>
+        <div><span>Operação da loja</span><h1>Configurações</h1><p>Recursos, horários, pedido mínimo e áreas de entrega em um só lugar.</p></div>
         <button type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</button>
       </header>
 
@@ -76,12 +121,29 @@ export default function StoreSettingsManager() {
       {error ? <p className="manager-error">{error}</p> : null}
 
       <section className="store-settingsCard">
-        <header><div><span>01</span><div><h2>Pedido mínimo</h2><p>Valor dos produtos, sem incluir a taxa de entrega.</p></div></div><strong>{formatCurrency(settings.minimumOrder)}</strong></header>
+        <header><div><span>01</span><div><h2>Funções da loja</h2><p>Ative apenas os recursos que deseja oferecer aos clientes.</p></div></div></header>
+        <div className="store-featuresEditor">
+          {featureOptions.map((option) => (
+            <label key={option.key}>
+              <span><strong>{option.title}</strong><small>{option.description}</small></span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={settings.features[option.key]}
+                onChange={(event) => updateFeature(option.key, event.target.checked)}
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="store-settingsCard">
+        <header><div><span>02</span><div><h2>Pedido mínimo</h2><p>Valor dos produtos, sem incluir a taxa de entrega.</p></div></div><strong>{formatCurrency(settings.minimumOrder)}</strong></header>
         <label className="store-settingsMinimum"><span>Valor mínimo (R$)</span><input type="number" min="0" step="0.01" value={settings.minimumOrder} onChange={(event) => setSettings({ ...settings, minimumOrder: Number(event.target.value) })} /></label>
       </section>
 
       <section className="store-settingsCard">
-        <header><div><span>02</span><div><h2>Horários de funcionamento</h2><p>Marque o dia como fechado ou informe abertura e encerramento.</p></div></div></header>
+        <header><div><span>03</span><div><h2>Horários de funcionamento</h2><p>Marque o dia como fechado ou informe abertura e encerramento.</p></div></div></header>
         <div className="store-hoursEditor">
           {settings.weeklyHours.map((hour, index) => (
             <div className={hour.closed ? 'is-closed' : ''} key={hour.day}>
@@ -96,7 +158,7 @@ export default function StoreSettingsManager() {
       </section>
 
       <section className="store-settingsCard">
-        <header><div><span>03</span><div><h2>Bairros e taxas</h2><p>Adicione, edite ou remova as regiões atendidas.</p></div></div><button type="button" onClick={() => setSettings({ ...settings, deliveryZones: [...settings.deliveryZones, { neighborhood: '', distanceKm: 0, deliveryFee: 0, aliases: [] }] })}>Adicionar bairro</button></header>
+        <header><div><span>04</span><div><h2>Bairros e taxas</h2><p>Adicione, edite ou remova as regiões atendidas.</p></div></div><button type="button" onClick={() => setSettings({ ...settings, deliveryZones: [...settings.deliveryZones, { neighborhood: '', distanceKm: 0, deliveryFee: 0, aliases: [] }] })}>Adicionar bairro</button></header>
         <div className="store-zonesEditor">
           <div className="store-zonesLabels"><span>Bairro</span><span>Distância (km)</span><span>Taxa (R$)</span><span /></div>
           {settings.deliveryZones.map((zone, index) => (

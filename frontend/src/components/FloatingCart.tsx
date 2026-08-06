@@ -4,8 +4,17 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import {
+  FiArrowRight,
+  FiCheck,
+  FiMapPin,
+  FiPlus,
+  FiShoppingBag,
+  FiTag,
+} from 'react-icons/fi'
 
 import {
   formatPhone,
@@ -36,9 +45,10 @@ type FloatingCartProps = {
   showTrigger?: boolean
   customerAccount: CustomerUser | null
   onCustomerAccount: (user: CustomerUser) => void
+  onLoginRequest: () => void
 }
 
-type PaymentMethod = 'online' | 'card-delivery'
+type PaymentMethod = 'online' | 'card-delivery' | 'cash-delivery'
 
 type PaymentResult = {
   payment_id?: string | number
@@ -60,6 +70,14 @@ type CheckoutSession = {
   fingerprint: string
 }
 
+type CampaignCoupon = {
+  campaignId: string
+  campaignName: string
+  code: string
+  discount: number
+  discountType: 'fixed' | 'percentage' | 'free_delivery'
+}
+
 type DeliveryZone = {
   neighborhood: string
   distanceKm: number
@@ -76,9 +94,22 @@ type DeliveryQuote = {
   message?: string
 }
 
+type SavedAddress = {
+  id: string
+  label: string
+  recipientName: string
+  phone: string
+  address: string
+  number: string
+  neighborhood: string
+  complement: string
+  isDefault: boolean
+}
+
 const paymentLabels: Record<PaymentMethod, string> = {
   online: 'Pix ou cartão online',
   'card-delivery': 'Cartão na entrega',
+  'cash-delivery': 'Dinheiro na entrega',
 }
 
 function buildWhatsappLink(phone: string, message: string) {
@@ -101,6 +132,7 @@ export default function FloatingCart({
   whatsappPhone,
   customerAccount,
   onCustomerAccount,
+  onLoginRequest,
   showTrigger = true,
 }: FloatingCartProps) {
   const guestCustomer = loadGuestCustomer()
@@ -117,6 +149,12 @@ export default function FloatingCart({
   })
   const [notes, setNotes] = useState('')
   const [rewardCode, setRewardCode] = useState('')
+  const [campaignCode, setCampaignCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<CampaignCoupon | null>(null)
+  const [couponState, setCouponState] = useState<
+    'idle' | 'validating' | 'applied' | 'error'
+  >('idle')
+  const [couponMessage, setCouponMessage] = useState('')
   const [session, setSession] = useState<CheckoutSession | null>(null)
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null)
   const [checkoutState, setCheckoutState] = useState<
@@ -131,8 +169,33 @@ export default function FloatingCart({
   >('loading-zones')
   const [unsupportedNeighborhood, setUnsupportedNeighborhood] = useState(false)
   const [deliveryError, setDeliveryError] = useState('')
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
+  const [selectedAddressId, setSelectedAddressId] = useState('')
+  const [addressLabel, setAddressLabel] = useState('Casa')
+  const [addressesState, setAddressesState] = useState<
+    'idle' | 'loading' | 'error'
+  >('idle')
+  const appliedSavedAddressFor = useRef('')
+  const checkoutSubmissionInFlight = useRef(false)
   const settings = useStoreSettings()
   const storeHours = getStoreHoursStatus(new Date(), settings.weeklyHours)
+  const availablePaymentMethods = useMemo(
+    () => ([
+      settings.features.onlinePaymentEnabled ? 'online' : null,
+      settings.features.cardOnDeliveryEnabled ? 'card-delivery' : null,
+      settings.features.cashOnDeliveryEnabled ? 'cash-delivery' : null,
+    ].filter(Boolean) as PaymentMethod[]),
+    [settings.features],
+  )
+
+  useEffect(() => {
+    if (
+      availablePaymentMethods.length &&
+      !availablePaymentMethods.includes(paymentMethod)
+    ) {
+      setPaymentMethod(availablePaymentMethods[0])
+    }
+  }, [availablePaymentMethods, paymentMethod])
 
   useEffect(() => {
     if (!isOpen) return
@@ -159,13 +222,58 @@ export default function FloatingCart({
   }, [isOpen, onClose])
 
   useEffect(() => {
-    if (!customerAccount) return
+    if (!customerAccount || session) return
     setCustomer((current) => ({
       ...current,
       name: customerAccount.name,
       phone: customerAccount.phone,
     }))
-  }, [customerAccount])
+  }, [customerAccount, session])
+
+  useEffect(() => {
+    if (!isOpen || !settings.features.onlinePaymentEnabled) return
+    void import('@/components/PaymentBrick')
+  }, [isOpen, settings.features.onlinePaymentEnabled])
+
+  useEffect(() => {
+    if (!customerAccount) {
+      setSavedAddresses([])
+      setSelectedAddressId('')
+      appliedSavedAddressFor.current = ''
+      return
+    }
+
+    const controller = new AbortController()
+    setAddressesState('loading')
+    fetch('/api/addresses', { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Não foi possível carregar seus endereços.')
+        }
+        const addresses = Array.isArray(data.addresses) ? data.addresses : []
+        setSavedAddresses(addresses)
+        setAddressesState('idle')
+        const preferred =
+          addresses.find((address: SavedAddress) => address.isDefault) ??
+          addresses[0]
+        if (
+          preferred &&
+          !session &&
+          appliedSavedAddressFor.current !== customerAccount.id
+        ) {
+          appliedSavedAddressFor.current = customerAccount.id
+          selectSavedAddress(preferred)
+        }
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        console.error('Falha ao carregar endereços:', error)
+        setAddressesState('error')
+      })
+
+    return () => controller.abort()
+  }, [customerAccount, session])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -262,6 +370,10 @@ export default function FloatingCart({
     toCents(subtotal) +
       (deliveryMethod === 'delivery' ? toCents(deliveryFee) : 0),
   )
+  const campaignDiscount = appliedCoupon?.discount ?? 0
+  const checkoutTotal = fromCents(
+    Math.max(0, toCents(estimatedTotal) - toCents(campaignDiscount)),
+  )
   const count = resolvedItems.reduce((sum, item) => sum + item.quantity, 0)
   const deliveryReady =
     deliveryState === 'ready' && Boolean(deliveryQuote?.available)
@@ -285,15 +397,22 @@ export default function FloatingCart({
       delivery_fee: deliveryMethod === 'delivery' ? deliveryFee : 0,
       payment_method: paymentMethod,
       subtotal,
-      total: estimatedTotal,
+      total: checkoutTotal,
       notes,
       reward_code: rewardCode.trim().toUpperCase(),
+      campaign_code: appliedCoupon
+        ? campaignCode.trim().toUpperCase()
+        : '',
+      address_label: addressLabel.trim() || 'Casa',
     }),
     [
       customer,
       deliveryFee,
       deliveryMethod,
-      estimatedTotal,
+      checkoutTotal,
+      appliedCoupon,
+      addressLabel,
+      campaignCode,
       notes,
       paymentMethod,
       rewardCode,
@@ -305,12 +424,54 @@ export default function FloatingCart({
   const activeSession =
     session?.fingerprint === fingerprint ? session : null
   const canFinalize =
+    settings.features.orderingEnabled &&
+    availablePaymentMethods.includes(paymentMethod) &&
     storeHours.isOpen &&
     Boolean(resolvedItems.length) &&
     subtotal >= settings.minimumOrder &&
     deliveryReady &&
     checkoutState !== 'creating' &&
     !activeSession
+
+  useEffect(() => {
+    setAppliedCoupon(null)
+    setCouponState('idle')
+    setCouponMessage('')
+  }, [subtotal, deliveryFee])
+
+  async function applyCampaignCoupon() {
+    const code = campaignCode.trim().toUpperCase()
+    if (!code) {
+      setCouponState('error')
+      setCouponMessage('Digite o código da campanha.')
+      return
+    }
+    setCouponState('validating')
+    setCouponMessage('')
+    try {
+      const response = await fetch('/api/campaigns/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal, deliveryFee }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Não foi possível validar este cupom.')
+      }
+      setCampaignCode(code)
+      setAppliedCoupon(data.coupon)
+      setCouponState('applied')
+      setCouponMessage(
+        `${data.coupon.campaignName}: você economizou ${formatCurrency(data.coupon.discount)}.`,
+      )
+    } catch (error) {
+      setAppliedCoupon(null)
+      setCouponState('error')
+      setCouponMessage(
+        error instanceof Error ? error.message : 'Cupom inválido.',
+      )
+    }
+  }
 
   function getWhatsappMessage(finalTotal: number, orderId: string) {
     const orderCode = orderId.slice(0, 8).toUpperCase()
@@ -344,10 +505,55 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
 
   function updateCustomer(field: keyof typeof customer, value: string) {
     setCustomer((current) => ({ ...current, [field]: value }))
+    if (
+      field === 'address' ||
+      field === 'number' ||
+      field === 'neighborhood' ||
+      field === 'complement'
+    ) {
+      setSelectedAddressId('')
+    }
     setMessage('')
   }
 
+  function selectSavedAddress(address: SavedAddress) {
+    const localPhone = address.phone.replace(/^55(?=\d{10,11}$)/, '')
+    setSelectedAddressId(address.id)
+    setAddressLabel(address.label || 'Casa')
+    setUnsupportedNeighborhood(false)
+    setDeliveryError('')
+    setCustomer((current) => ({
+      ...current,
+      name: address.recipientName || current.name,
+      phone: localPhone ? formatPhone(localPhone) : current.phone,
+      address: address.address,
+      number: address.number,
+      neighborhood: address.neighborhood,
+      complement: address.complement || '',
+    }))
+  }
+
+  function useAnotherAddress() {
+    setSelectedAddressId('')
+    setAddressLabel('Novo endereço')
+    setUnsupportedNeighborhood(false)
+    setDeliveryError('')
+    setCustomer((current) => ({
+      ...current,
+      address: '',
+      number: '',
+      neighborhood: '',
+      complement: '',
+    }))
+  }
+
   function validateCheckout(requireEmail: boolean) {
+    if (!settings.features.orderingEnabled) {
+      throw new Error('Os pedidos online estão temporariamente desativados.')
+    }
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      throw new Error('Escolha uma forma de pagamento disponível.')
+    }
     if (!storeHours.isOpen) {
       throw new Error(`A loja esta fechada agora. ${storeHours.detail}.`)
     }
@@ -378,7 +584,8 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
   }
 
   async function submitOrder(requireEmail: boolean) {
-    if (checkoutState === 'creating') return
+    if (checkoutSubmissionInFlight.current) return null
+    checkoutSubmissionInFlight.current = true
     setCheckoutState('creating')
     setMessage('')
     setPaymentResult(null)
@@ -395,7 +602,7 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
         })),
         currency: 'BRL',
         num_items: count,
-        value: estimatedTotal,
+        value: checkoutTotal,
       })
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -404,19 +611,25 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
+        if (data.code === 'CUSTOMER_LOGIN_REQUIRED') onLoginRequest()
         throw new Error(data.error ?? 'Não foi possível criar o pedido.')
       }
 
-      if (data.user) onCustomerAccount(data.user)
       saveGuestCustomer({ name: customer.name, phone: customer.phone })
 
-      return data as { order_id: string; total: number }
+      return data as {
+        order_id: string
+        total: number
+        user?: CustomerUser
+      }
     } catch (error) {
       setCheckoutState('error')
       setMessage(
         error instanceof Error ? error.message : 'Não foi possível criar o pedido.',
       )
       return null
+    } finally {
+      checkoutSubmissionInFlight.current = false
     }
   }
 
@@ -430,6 +643,7 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
       fingerprint,
     })
     setCheckoutState('paying')
+    if (data.user) onCustomerAccount(data.user)
   }
 
   async function createOfflineOrder() {
@@ -452,6 +666,7 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
       total: data.total,
       fingerprint,
     })
+    if (data.user) onCustomerAccount(data.user)
     trackMetaPurchaseOnce(data.order_id, {
       content_ids: resolvedItems.map((item) => item.id),
       content_type: 'product',
@@ -497,7 +712,7 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
         currency: 'BRL',
         num_items: count,
         order_id: result.order_id,
-        value: activeSession?.total ?? estimatedTotal,
+        value: activeSession?.total ?? checkoutTotal,
       })
       setCheckoutState('success')
       setMessage('Pagamento aprovado! Seu pedido já foi confirmado.')
@@ -549,13 +764,20 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
 
   return (
     <>
-      {showTrigger ? (
+      {showTrigger && count > 0 ? (
         <button
           type="button"
-          className="menu-cartTrigger menu-cartTrigger--floating"
-          aria-label={`Abrir carrinho com ${count} itens`}
+          className="cart-bottomBar"
+          aria-label={`Ver sacola com ${count} itens`}
           onClick={onOpen}
         >
+          <span className="cart-bottomIcon"><FiShoppingBag /></span>
+          <span className="cart-bottomCopy">
+            <small>{count} {count === 1 ? 'item' : 'itens'}</small>
+            <strong>Ver sacola</strong>
+          </span>
+          <b>{formatCurrency(subtotal)}</b>
+          <FiArrowRight />
           <span className="menu-cartIcon" aria-hidden="true">🛒</span>
           {count ? <span className="menu-cartCount">{count}</span> : null}
         </button>
@@ -576,8 +798,8 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
         >
           <div className="cart-header">
             <div>
-              <p className="menu-panel-label">Seu carrinho</p>
-              <h3 id="cart-title">Resumo do pedido</h3>
+              <p className="menu-panel-label">Sua sacola</p>
+              <h3 id="cart-title">Revise e finalize</h3>
             </div>
             <button type="button" className="cart-close" onClick={onClose}>
               Fechar
@@ -642,6 +864,16 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
               )}
             </div>
 
+            {resolvedItems.length ? (
+              <button
+                type="button"
+                className="cart-addMoreItems"
+                onClick={onClose}
+              >
+                <FiPlus /> Adicionar mais itens
+              </button>
+            ) : null}
+
             <div className="cart-footer">
               <div className="cart-checkoutBox">
                 <div className="cart-checkoutIntro">
@@ -671,7 +903,7 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                     </div>
                   </div>
                   <div className="cart-paymentChoice">
-                    {(Object.keys(paymentLabels) as PaymentMethod[]).map((method) => (
+                    {availablePaymentMethods.map((method) => (
                       <button
                         type="button"
                         className={paymentMethod === method ? 'is-active' : ''}
@@ -732,6 +964,84 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                   ) : null}
                   {deliveryMethod === 'delivery' ? (
                     <>
+                      {customerAccount ? (
+                        <div className="cart-savedAddresses cart-fieldWide">
+                          <div className="cart-savedAddressesHeader">
+                            <div>
+                              <FiMapPin />
+                              <span>
+                                <strong>Endereços salvos</strong>
+                                <small>Escolha um endereço ou informe outro</small>
+                              </span>
+                            </div>
+                            <button type="button" onClick={useAnotherAddress}>
+                              <FiPlus />
+                              Outro endereço
+                            </button>
+                          </div>
+                          {addressesState === 'loading' ? (
+                            <p>Carregando seus endereços…</p>
+                          ) : null}
+                          {addressesState === 'error' ? (
+                            <p className="is-error">
+                              Não foi possível carregar os endereços. Você ainda
+                              pode preencher os campos abaixo.
+                            </p>
+                          ) : null}
+                          {savedAddresses.length ? (
+                            <div className="cart-savedAddressList">
+                              {savedAddresses.map((savedAddress) => (
+                                <button
+                                  type="button"
+                                  key={savedAddress.id}
+                                  className={
+                                    selectedAddressId === savedAddress.id
+                                      ? 'is-selected'
+                                      : ''
+                                  }
+                                  aria-pressed={
+                                    selectedAddressId === savedAddress.id
+                                  }
+                                  onClick={() =>
+                                    selectSavedAddress(savedAddress)
+                                  }
+                                >
+                                  <span>
+                                    <strong>{savedAddress.label}</strong>
+                                    {savedAddress.isDefault ? (
+                                      <small>Principal</small>
+                                    ) : null}
+                                  </span>
+                                  <b>
+                                    {savedAddress.address}, {savedAddress.number}
+                                  </b>
+                                  <em>{savedAddress.neighborhood}</em>
+                                  {selectedAddressId === savedAddress.id ? (
+                                    <FiCheck aria-hidden="true" />
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          ) : addressesState === 'idle' ? (
+                            <p>
+                              Seu primeiro endereço será salvo com segurança
+                              depois deste pedido.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <label className="cart-fieldWide">
+                        <span>Nome deste endereço</span>
+                        <input
+                          placeholder="Ex.: Casa, Trabalho ou Casa da mãe"
+                          value={addressLabel}
+                          maxLength={30}
+                          onChange={(event) => {
+                            setAddressLabel(event.target.value)
+                            setSelectedAddressId('')
+                          }}
+                        />
+                      </label>
                       <label className="cart-fieldWide">
                         <span>Endereço *</span>
                         <input
@@ -839,11 +1149,51 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                     />
                   </label>
                   <p className="cart-privacyNotice cart-fieldWide">
-                    Ao finalizar, usamos seus dados apenas para processar e
-                    acompanhar o pedido. <a href="/privacidade">Ver privacidade</a>
+                    Seu nome, WhatsApp e endereço ficam salvos na sua conta para
+                    agilizar os próximos pedidos. Dados de cartão nunca são
+                    armazenados por nós.{' '}
+                    <a href="/privacidade">Ver privacidade</a>
                   </p>
                   </div>
                 </section>
+                {customerAccount ? (
+                  <section className="cart-formSection cart-campaignCode">
+                    <div className="cart-formSectionHeading">
+                      <span><FiTag /></span>
+                      <div>
+                        <strong>Cupom de desconto</strong>
+                        <small>Digite o código da campanha para economizar.</small>
+                      </div>
+                    </div>
+                    <div className="cart-couponInput">
+                      <label>
+                        <span>Código do cupom</span>
+                        <input
+                          value={campaignCode}
+                          onChange={(event) => {
+                            setCampaignCode(event.target.value.toUpperCase())
+                            setAppliedCoupon(null)
+                            setCouponState('idle')
+                            setCouponMessage('')
+                          }}
+                          placeholder="EX.: DESCONTO10"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={couponState === 'validating' || !campaignCode.trim()}
+                        onClick={applyCampaignCoupon}
+                      >
+                        {couponState === 'validating' ? 'Validando…' : 'Aplicar'}
+                      </button>
+                    </div>
+                    {couponMessage ? (
+                      <p className={`cart-couponMessage is-${couponState}`}>
+                        {couponMessage}
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
                 {customerAccount ? (
                   <section className="cart-formSection cart-loyaltyCode">
                     <div className="cart-formSectionHeading">
@@ -869,6 +1219,12 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                     <span>{storeHours.detail}</span>
                   </div>
                 ) : null}
+                {!settings.features.orderingEnabled ? (
+                  <div className="cart-closedNotice">
+                    <strong>Pedidos online pausados</strong>
+                    <span>A loja desativou temporariamente o recebimento de novos pedidos.</span>
+                  </div>
+                ) : null}
                 {settings.minimumOrder > 0 && subtotal < settings.minimumOrder ? (
                   <div className="cart-minimumNotice">
                     <strong>Pedido mínimo de {formatCurrency(settings.minimumOrder)}</strong>
@@ -889,10 +1245,16 @@ ${customer.address}, ${customer.number}${complement} - ${customer.neighborhood}
                         : 'Selecione o bairro'}
                   </span>
                 </div>
+                {campaignDiscount > 0 ? (
+                  <div className="cart-discountLine">
+                    <span>Cupom {appliedCoupon?.code}</span>
+                    <strong>- {formatCurrency(campaignDiscount)}</strong>
+                  </div>
+                ) : null}
                 <div className="cart-total">
                   <span>Total</span>
                   <strong>
-                    {formatCurrency(activeSession?.total ?? estimatedTotal)}
+                    {formatCurrency(activeSession?.total ?? checkoutTotal)}
                   </strong>
                 </div>
               </div>

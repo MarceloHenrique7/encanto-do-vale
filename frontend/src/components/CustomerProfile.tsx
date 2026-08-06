@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { FiAward, FiGift } from 'react-icons/fi'
+import { FiAward, FiGift, FiMapPin, FiPlus, FiTag, FiTrash2 } from 'react-icons/fi'
 
 import type { CustomerUser } from '@/components/CustomerAuthGate'
 
 type CustomerProfileProps = {
   user: CustomerUser
   isOpen: boolean
+  initialView?: 'profile' | 'rewards'
   onClose: () => void
   onUpdate: (user: CustomerUser) => void
 }
@@ -18,6 +19,26 @@ type CustomerOrder = {
   total: number
   created_at: string
   items: Array<{ name: string; quantity: number }>
+}
+
+type SavedAddress = {
+  id: string
+  label: string
+  recipientName: string
+  phone: string
+  address: string
+  number: string
+  neighborhood: string
+  complement: string
+  isDefault: boolean
+}
+
+const emptyAddress = {
+  label: 'Casa',
+  address: '',
+  number: '',
+  neighborhood: '',
+  complement: '',
 }
 
 type LoyaltyData = {
@@ -46,6 +67,30 @@ type LoyaltyData = {
     status: string
     created_at: string
   }>
+}
+
+type CampaignAssignment = {
+  campaign: {
+    id: string
+    name: string
+    type: 'voucher' | 'coupon' | 'gift' | 'announcement'
+    headline: string
+    description: string
+    benefit: string
+    partnerName: string
+    imageSrc: string
+    instructions: string
+    terms: string
+    endAt?: string
+    publicCouponCode?: string
+  }
+  voucher: {
+    id: string
+    code: string
+    status: 'available' | 'used'
+    source?: 'distributed' | 'public'
+    createdAt: string
+  }
 }
 
 function statusLabel(order: CustomerOrder) {
@@ -80,6 +125,7 @@ function formatDate(value: string) {
 export default function CustomerProfile({
   user,
   isOpen,
+  initialView = 'profile',
   onClose,
   onUpdate,
 }: CustomerProfileProps) {
@@ -95,6 +141,15 @@ export default function CustomerProfile({
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null)
   const [loyaltyError, setLoyaltyError] = useState('')
   const [redeemingId, setRedeemingId] = useState('')
+  const [campaigns, setCampaigns] = useState<CampaignAssignment[]>([])
+  const [campaignError, setCampaignError] = useState('')
+  const [copiedCode, setCopiedCode] = useState('')
+  const [addresses, setAddresses] = useState<SavedAddress[]>([])
+  const [addressForm, setAddressForm] = useState(emptyAddress)
+  const [addressMessage, setAddressMessage] = useState('')
+  const [addressError, setAddressError] = useState('')
+  const [savingAddress, setSavingAddress] = useState(false)
+  const [deletingAddressId, setDeletingAddressId] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
@@ -128,9 +183,57 @@ export default function CustomerProfile({
         if (active) setLoyalty(data)
       })
       .catch((requestError) => {
+        if (active) {
+          setLoyaltyError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Não foi possível carregar seus pontos.',
+          )
+        }
+      })
+    fetch('/api/campaigns')
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Não foi possível carregar seus benefícios.')
+        }
+        if (active) {
+          setCampaigns(Array.isArray(data.assignments) ? data.assignments : [])
+        }
+      })
+      .catch((requestError) => {
+        if (active) {
+          setCampaignError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Não foi possível carregar seus benefícios.',
+          )
+        }
+      })
+      .catch((requestError) => {
         if (active) setLoyaltyError(
           requestError instanceof Error ? requestError.message : 'Não foi possível carregar seus pontos.',
         )
+      })
+
+    fetch('/api/addresses')
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Não foi possível carregar seus endereços.')
+        }
+        if (active) {
+          setAddresses(Array.isArray(data.addresses) ? data.addresses : [])
+        }
+      })
+      .catch((requestError) => {
+        if (active) {
+          setAddressError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Não foi possível carregar seus endereços.',
+          )
+        }
       })
 
     return () => {
@@ -175,6 +278,70 @@ export default function CustomerProfile({
     window.location.assign('/')
   }
 
+  async function saveAddress(event: FormEvent) {
+    event.preventDefault()
+    setSavingAddress(true)
+    setAddressMessage('')
+    setAddressError('')
+    try {
+      const response = await fetch('/api/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...addressForm,
+          recipientName: name || user.name,
+          phone: user.phone,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Não foi possível salvar o endereço.')
+      }
+      setAddresses((current) => [
+        data.address,
+        ...current.filter((address) => address.id !== data.address.id),
+      ])
+      setAddressForm(emptyAddress)
+      setAddressMessage('Endereço salvo. Ele já estará disponível no checkout.')
+    } catch (requestError) {
+      setAddressError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Não foi possível salvar o endereço.',
+      )
+    } finally {
+      setSavingAddress(false)
+    }
+  }
+
+  async function deleteAddress(address: SavedAddress) {
+    if (!window.confirm(`Excluir o endereço “${address.label}”?`)) return
+    setDeletingAddressId(address.id)
+    setAddressMessage('')
+    setAddressError('')
+    try {
+      const response = await fetch(`/api/addresses/${address.id}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Não foi possível excluir o endereço.')
+      }
+      setAddresses((current) =>
+        current.filter((item) => item.id !== address.id),
+      )
+      setAddressMessage('Endereço excluído.')
+    } catch (requestError) {
+      setAddressError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Não foi possível excluir o endereço.',
+      )
+    } finally {
+      setDeletingAddressId('')
+    }
+  }
+
   async function redeem(rewardId: string, rewardName: string) {
     if (!window.confirm(`Resgatar “${rewardName}” com seus pontos?`)) return
     setRedeemingId(rewardId)
@@ -214,8 +381,12 @@ export default function CustomerProfile({
       <aside className="customer-profileDrawer" aria-hidden={!isOpen}>
         <div className="customer-profileHeader">
           <div>
-            <span>Minha conta</span>
-            <h2>Olá, {user.name.split(' ')[0]}</h2>
+            <span>{initialView === 'rewards' ? 'Clube de Fidelidade' : 'Minha conta'}</span>
+            <h2>
+              {initialView === 'rewards'
+                ? 'Pontos e presentes'
+                : `Olá, ${user.name.split(' ')[0]}`}
+            </h2>
           </div>
           <button type="button" onClick={onClose}>Fechar</button>
         </div>
@@ -273,7 +444,185 @@ export default function CustomerProfile({
           </section>
         ) : null}
         {loyaltyError ? <p className="customer-authError">{loyaltyError}</p> : null}
-        <form onSubmit={saveProfile}>
+        {initialView === 'profile' && campaigns.length ? (
+          <section className="customer-campaignWallet">
+            <header>
+              <span><FiTag /></span>
+              <div><small>Benefícios exclusivos</small><h3>Meus vouchers e cupons</h3></div>
+              <strong>{campaigns.filter(({ voucher }) => voucher.status === 'available').length}</strong>
+            </header>
+            <div className="customer-campaignList">
+              {campaigns.map(({ campaign, voucher }) => (
+                <article
+                  className={voucher.status === 'used' ? 'is-used' : ''}
+                  key={voucher.id}
+                >
+                  {campaign.imageSrc ? (
+                    <img src={campaign.imageSrc} alt="" loading="lazy" />
+                  ) : null}
+                  <div>
+                    <span>{campaign.partnerName || 'Encanto do Vale'}</span>
+                    <h4>{campaign.headline || campaign.name}</h4>
+                    <p>{campaign.benefit}</p>
+                    {campaign.description ? <small>{campaign.description}</small> : null}
+                  </div>
+                  <div className="customer-campaignCode">
+                    <span>{voucher.status === 'available' ? 'Seu código' : 'Código utilizado'}</span>
+                    <code>{voucher.code}</code>
+                    {voucher.status === 'available' ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard?.writeText(voucher.code)
+                          setCopiedCode(voucher.code)
+                        }}
+                      >
+                        {copiedCode === voucher.code ? 'Copiado!' : 'Copiar código'}
+                      </button>
+                    ) : null}
+                  </div>
+                  {campaign.instructions ? (
+                    <p className="customer-campaignInstructions">
+                      <strong>Como usar:</strong> {campaign.instructions}
+                    </p>
+                  ) : null}
+                  {campaign.terms ? <small className="customer-campaignTerms">{campaign.terms}</small> : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {campaignError ? <p className="customer-authError">{campaignError}</p> : null}
+        {initialView === 'profile' ? (
+          <section className="customer-addressBook">
+            <header>
+              <span><FiMapPin /></span>
+              <div>
+                <small>Entrega mais rápida</small>
+                <h3>Meus endereços</h3>
+              </div>
+              <strong>{addresses.length}</strong>
+            </header>
+            {addresses.length ? (
+              <div className="customer-addressList">
+                {addresses.map((address) => (
+                  <article key={address.id}>
+                    <div>
+                      <span>
+                        <strong>{address.label}</strong>
+                        {address.isDefault ? <small>Principal</small> : null}
+                      </span>
+                      <p>{address.address}, {address.number}</p>
+                      <small>
+                        {address.neighborhood}
+                        {address.complement ? ` · ${address.complement}` : ''}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Excluir endereço ${address.label}`}
+                      disabled={deletingAddressId === address.id}
+                      onClick={() => deleteAddress(address)}
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="customer-addressEmpty">
+                Cadastre casa, trabalho ou outro local para preencher o checkout
+                com um toque.
+              </p>
+            )}
+            <details className="customer-newAddress">
+              <summary><FiPlus /> Cadastrar novo endereço</summary>
+              <form onSubmit={saveAddress}>
+                <label>
+                  Nome do endereço
+                  <input
+                    value={addressForm.label}
+                    maxLength={30}
+                    placeholder="Casa, Trabalho..."
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Endereço
+                  <input
+                    value={addressForm.address}
+                    placeholder="Rua, avenida ou condomínio"
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        address: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <div>
+                  <label>
+                    Número
+                    <input
+                      value={addressForm.number}
+                      placeholder="Nº"
+                      onChange={(event) =>
+                        setAddressForm((current) => ({
+                          ...current,
+                          number: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Bairro
+                    <input
+                      value={addressForm.neighborhood}
+                      placeholder="Seu bairro"
+                      onChange={(event) =>
+                        setAddressForm((current) => ({
+                          ...current,
+                          neighborhood: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <label>
+                  Complemento
+                  <input
+                    value={addressForm.complement}
+                    placeholder="Apartamento, bloco ou referência"
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        complement: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <button type="submit" disabled={savingAddress}>
+                  {savingAddress ? 'Salvando…' : 'Salvar endereço'}
+                </button>
+              </form>
+            </details>
+            {addressMessage ? (
+              <p className="customer-profileSuccess">{addressMessage}</p>
+            ) : null}
+            {addressError ? (
+              <p className="customer-authError">{addressError}</p>
+            ) : null}
+            <p className="customer-addressPrivacy">
+              Não armazenamos número, código de segurança ou outros dados de cartão.
+            </p>
+          </section>
+        ) : null}
+        {initialView === 'profile' ? <form onSubmit={saveProfile}>
           <label>
             Nome
             <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -314,21 +663,21 @@ export default function CustomerProfile({
           <button type="submit" disabled={saving}>
             {saving ? 'Salvando…' : 'Salvar perfil'}
           </button>
-        </form>
+        </form> : null}
         {message ? <p className="customer-profileSuccess">{message}</p> : null}
         {error ? <p className="customer-authError">{error}</p> : null}
-        <section className="customer-orderHistory" aria-label="Historico de pedidos">
+        {initialView === 'profile' ? <section className="customer-orderHistory" aria-label="Historico de pedidos">
           <div className="customer-orderHistoryHeader">
             <div>
               <span>Meus pedidos</span>
-              <h3>Historico por WhatsApp</h3>
+              <h3>Pedidos finalizados</h3>
             </div>
             {loadingOrders ? <small>Atualizando...</small> : null}
           </div>
           {ordersError ? <p className="customer-authError">{ordersError}</p> : null}
           {!loadingOrders && !ordersError && orders.length === 0 ? (
             <p className="customer-orderEmpty">
-              Seus proximos pedidos vao aparecer aqui.
+              Seus pedidos aparecerão aqui depois que forem finalizados.
             </p>
           ) : null}
           <div className="customer-orderList">
@@ -357,10 +706,10 @@ export default function CustomerProfile({
               )
             })}
           </div>
-        </section>
-        <button type="button" className="customer-profileLogout" onClick={logout}>
+        </section> : null}
+        {initialView === 'profile' ? <button type="button" className="customer-profileLogout" onClick={logout}>
           Sair da conta
-        </button>
+        </button> : null}
       </aside>
     </div>
   )

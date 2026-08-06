@@ -164,27 +164,6 @@ export async function postPasswordLogin(request, response) {
   return response.json({ authenticated: true, user: publicUser(user) })
 }
 
-export async function postPhoneLogin(request, response) {
-  const phone = normalizeBrazilianPhone(request.body?.phone)
-  if (!phone) {
-    return response.status(400).json({ error: 'Informe um WhatsApp valido com DDD.' })
-  }
-
-  let user = await findUserByPhone(phone)
-  if (!user?.verified) {
-    user = await upsertVerifiedUser({
-      name: user?.name || '(sem nome)',
-      phone,
-    })
-  }
-
-  createCustomerSession(response, user.id)
-  return response.json({
-    authenticated: true,
-    user: publicUser(user),
-  })
-}
-
 export async function postGuestAccess(request, response) {
   if (!sessionIsConfigured()) {
     return response.status(503).json({
@@ -199,6 +178,14 @@ export async function postGuestAccess(request, response) {
   }
   if (!phone) {
     return response.status(400).json({ error: 'Informe um WhatsApp valido com DDD.' })
+  }
+
+  const existingUser = await findUserByPhone(phone)
+  if (existingUser) {
+    return response.status(409).json({
+      error:
+        'Este WhatsApp já possui cadastro. Entre com o código de segurança ou com sua senha.',
+    })
   }
 
   const user = await upsertVerifiedUser({ name, phone })

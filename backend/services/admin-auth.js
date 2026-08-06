@@ -5,7 +5,7 @@ import {
 } from 'node:crypto'
 
 const cookieName = 'encanto_manager'
-const sessionDurationInSeconds = 60 * 60 * 12
+const sessionDurationInSeconds = 60 * 60 * 24
 
 function secrets() {
   return {

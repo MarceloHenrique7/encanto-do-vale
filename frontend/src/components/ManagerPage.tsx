@@ -1,9 +1,23 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  FormEvent,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
-import { formatCurrency } from '@/lib/formatters'
+import { formatCurrency, formatPhone } from '@/lib/formatters'
+import {
+  calculateDeliveryEstimateMinutes,
+  formatDeliveryEstimate,
+  formatEstimatedArrival,
+} from '@/lib/deliveryEstimate'
 import CatalogManager from '@/components/CatalogManager'
 import StoreSettingsManager from '@/components/StoreSettingsManager'
 import LoyaltyManager from '@/components/LoyaltyManager'
+import CustomerManager from '@/components/CustomerManager'
 import {
   FiBell,
   FiAward,
@@ -13,7 +27,11 @@ import {
   FiRefreshCw,
   FiSettings,
   FiShoppingBag,
+  FiTag,
+  FiUsers,
 } from 'react-icons/fi'
+
+const CampaignManager = lazy(() => import('@/components/CampaignManager'))
 
 type RestaurantStatus =
   | 'awaiting_payment'
@@ -27,11 +45,13 @@ type RestaurantStatus =
 type ManagerOrder = {
   id: string
   status: string
+  payment_status?: string | null
   payment_method?: 'online' | 'cash-delivery' | 'card-delivery'
   restaurant_status?: RestaurantStatus
   customer: {
     name: string
     phone: string
+    email?: string
     address: string
     number: string
     neighborhood: string
@@ -52,9 +72,14 @@ type ManagerOrder = {
   }>
   delivery_method: 'pickup' | 'delivery'
   delivery_fee: number
+  distanceKm?: number
+  estimated_delivery_minutes?: number
+  subtotal: number
+  campaign_discount?: number
   total: number
   notes?: string
   created_at: string
+  updated_at?: string
 }
 
 const statusLabels: Record<RestaurantStatus, string> = {
@@ -208,6 +233,12 @@ function whatsappLink(phone: string) {
   return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`
 }
 
+function paymentMethodLabel(method?: ManagerOrder['payment_method']) {
+  if (method === 'cash-delivery') return 'Dinheiro na entrega'
+  if (method === 'card-delivery') return 'Cartão na entrega'
+  return 'Pagamento online'
+}
+
 export default function ManagerPage() {
   const [sessionState, setSessionState] = useState<
     'loading' | 'login' | 'authenticated'
@@ -219,7 +250,7 @@ export default function ManagerPage() {
   const [filter, setFilter] = useState<'active' | RestaurantStatus>('active')
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [actionError, setActionError] = useState('')
-  const [activeSection, setActiveSection] = useState<'orders' | 'catalog' | 'loyalty' | 'settings'>(
+  const [activeSection, setActiveSection] = useState<'orders' | 'catalog' | 'customers' | 'campaigns' | 'loyalty' | 'settings'>(
     'orders',
   )
   const [soundEnabled, setSoundEnabled] = useState(true)
@@ -230,8 +261,11 @@ export default function ManagerPage() {
   const seenNewOrders = useRef<Set<string> | null>(null)
   const lastNotificationAt = useRef(0)
   const originalTitle = useRef(document.title)
+  const ordersRequestInFlight = useRef(false)
 
   const loadOrders = useCallback(async (silent = false) => {
+    if (ordersRequestInFlight.current) return
+    ordersRequestInFlight.current = true
     if (!silent) setLoadingOrders(true)
     try {
       const response = await fetch('/api/admin/orders')
@@ -281,6 +315,7 @@ export default function ManagerPage() {
     } catch {
       setActionError('Não foi possível atualizar os pedidos.')
     } finally {
+      ordersRequestInFlight.current = false
       setLoadingOrders(false)
     }
   }, [])
@@ -298,14 +333,25 @@ export default function ManagerPage() {
   useEffect(() => {
     if (sessionState !== 'authenticated') return
     loadOrders()
-    const interval = window.setInterval(() => loadOrders(true), 5_000)
     const eventSource = new EventSource('/api/admin/orders/stream')
     eventSource.onmessage = () => loadOrders(true)
-    const refreshOnReturn = () => loadOrders(true)
+    let fallbackInterval: number | undefined
+    const stopFallback = () => {
+      if (fallbackInterval) window.clearInterval(fallbackInterval)
+      fallbackInterval = undefined
+    }
+    const startFallback = () => {
+      fallbackInterval ??= window.setInterval(() => loadOrders(true), 30_000)
+    }
+    eventSource.onopen = stopFallback
+    eventSource.onerror = startFallback
+    const refreshOnReturn = () => {
+      if (!document.hidden) loadOrders(true)
+    }
     window.addEventListener('focus', refreshOnReturn)
     document.addEventListener('visibilitychange', refreshOnReturn)
     return () => {
-      window.clearInterval(interval)
+      stopFallback()
       window.removeEventListener('focus', refreshOnReturn)
       document.removeEventListener('visibilitychange', refreshOnReturn)
       eventSource.close()
@@ -501,17 +547,6 @@ export default function ManagerPage() {
         <div className="manager-headerActions">
           <button
             type="button"
-            className={activeSection === 'loyalty' ? 'is-active' : ''}
-            onClick={() => setActiveSection('loyalty')}
-          >
-            <FiAward />
-            <span>
-              <strong>Fidelidade</strong>
-              <small>Pontos, recompensas e clientes</small>
-            </span>
-          </button>
-          <button
-            type="button"
             className={soundEnabled && audioReady ? 'is-active' : ''}
             onClick={() => activateAlerts(true)}
           >
@@ -554,6 +589,39 @@ export default function ManagerPage() {
           </button>
           <button
             type="button"
+            className={activeSection === 'customers' ? 'is-active' : ''}
+            onClick={() => setActiveSection('customers')}
+          >
+            <FiUsers />
+            <span>
+              <strong>Clientes</strong>
+              <small>Cadastros e histórico de pedidos</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className={activeSection === 'campaigns' ? 'is-active' : ''}
+            onClick={() => setActiveSection('campaigns')}
+          >
+            <FiTag />
+            <span>
+              <strong>Campanhas</strong>
+              <small>Vouchers, cupons e ações</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className={activeSection === 'loyalty' ? 'is-active' : ''}
+            onClick={() => setActiveSection('loyalty')}
+          >
+            <FiAward />
+            <span>
+              <strong>Fidelidade e pontos</strong>
+              <small>Saldo dos clientes e recompensas</small>
+            </span>
+          </button>
+          <button
+            type="button"
             className={activeSection === 'settings' ? 'is-active' : ''}
             onClick={() => setActiveSection('settings')}
           >
@@ -574,7 +642,11 @@ export default function ManagerPage() {
         </nav>
 
         <section className="manager-content">
-        {activeSection === 'catalog' ? <CatalogManager /> : activeSection === 'loyalty' ? <LoyaltyManager /> : activeSection === 'settings' ? <StoreSettingsManager /> : (
+        {activeSection === 'catalog' ? <CatalogManager /> : activeSection === 'customers' ? <CustomerManager /> : activeSection === 'campaigns' ? (
+          <Suspense fallback={<section className="store-settingsLoading">Carregando campanhas…</section>}>
+            <CampaignManager />
+          </Suspense>
+        ) : activeSection === 'loyalty' ? <LoyaltyManager /> : activeSection === 'settings' ? <StoreSettingsManager /> : (
           <>
         <section className="manager-welcome">
           <div>
@@ -655,6 +727,13 @@ export default function ManagerPage() {
                 order.restaurant_status ??
                 (order.status === 'paid' ? 'new' : 'awaiting_payment')
               const action = nextActions[restaurantStatus]
+              const estimateMinutes =
+                order.estimated_delivery_minutes ??
+                calculateDeliveryEstimateMinutes(order.distanceKm)
+              const estimatedArrival = formatEstimatedArrival(
+                order.created_at,
+                estimateMinutes,
+              )
               return (
                 <article
                   className={`manager-orderCard manager-orderCard--${restaurantStatus}`}
@@ -705,24 +784,74 @@ export default function ManagerPage() {
                   {order.notes ? (
                     <p className="manager-orderNotes">Obs.: {order.notes}</p>
                   ) : null}
-                  <div className="manager-orderDelivery">
-                    <strong>
-                      {order.delivery_method === 'delivery'
-                        ? 'Entrega'
-                        : 'Entrega combinada'}
-                    </strong>
-                    {order.delivery_method === 'delivery' ? (
-                      <span>
-                        {order.customer.address}, {order.customer.number} —{' '}
+                  <div className="manager-orderDetails">
+                    <div className="manager-orderDetail manager-orderDetail--wide">
+                      <span>Cliente</span>
+                      <strong>{order.customer.name}</strong>
+                      <a
+                        href={whatsappLink(order.customer.phone)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {formatPhone(order.customer.phone)} · Abrir WhatsApp
+                      </a>
+                    </div>
+                    <div className="manager-orderDetail">
+                      <span>Pagamento</span>
+                      <strong>{paymentMethodLabel(order.payment_method)}</strong>
+                      <small>
+                        {order.payment_method === 'online'
+                          ? order.status === 'paid'
+                            ? 'Pagamento aprovado'
+                            : 'Aguardando confirmação'
+                          : 'Receber na entrega'}
+                      </small>
+                    </div>
+                    <div className="manager-orderDetail">
+                      <span>Distância e previsão</span>
+                      <strong>
+                        {Number(order.distanceKm ?? 0).toLocaleString('pt-BR')} km ·{' '}
+                        {formatDeliveryEstimate(estimateMinutes)}
+                      </strong>
+                      {estimatedArrival ? (
+                        <small>Chegada estimada até {estimatedArrival}</small>
+                      ) : null}
+                    </div>
+                    <div className="manager-orderDetail manager-orderDetail--wide">
+                      <span>Endereço completo</span>
+                      <strong>
+                        {order.customer.address}, {order.customer.number}
+                      </strong>
+                      <small>
                         {order.customer.neighborhood}
                         {order.customer.complement
-                          ? `, ${order.customer.complement}`
+                          ? ` · ${order.customer.complement}`
+                          : ' · Sem complemento'}
+                      </small>
+                    </div>
+                    <div className="manager-orderDetail">
+                      <span>Valores</span>
+                      <strong>Total {formatCurrency(order.total)}</strong>
+                      <small>
+                        Itens {formatCurrency(order.subtotal)} · Entrega{' '}
+                        {formatCurrency(order.delivery_fee)}
+                        {order.campaign_discount
+                          ? ` · Desconto -${formatCurrency(order.campaign_discount)}`
                           : ''}
-                      </span>
-                    ) : null}
-                    <a href={whatsappLink(order.customer.phone)}>
-                      WhatsApp do cliente
-                    </a>
+                      </small>
+                    </div>
+                    <div className="manager-orderDetail">
+                      <span>Feito em</span>
+                      <strong>
+                        {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                      </strong>
+                      <small>
+                        {new Date(order.created_at).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </small>
+                    </div>
                   </div>
                   <div className="manager-orderFooter">
                     <strong>{formatCurrency(order.total)}</strong>

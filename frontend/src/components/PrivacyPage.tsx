@@ -44,6 +44,10 @@ export default function PrivacyPage() {
             <li>Calcular entrega, confirmar pagamento e organizar a producao.</li>
             <li>Enviar informacoes do pedido pelo WhatsApp quando necessario.</li>
             <li>Manter historico de pedidos pelo telefone informado pelo cliente.</li>
+            <li>
+              Salvar nome, WhatsApp e enderecos na conta para agilizar pedidos
+              futuros. O cliente pode cadastrar ou excluir seus enderecos.
+            </li>
           </ul>
         </section>
 
@@ -53,6 +57,10 @@ export default function PrivacyPage() {
             Os pagamentos online sao processados pelo Mercado Pago. O site nao
             armazena dados completos de cartao. Recebemos apenas informacoes de
             status do pagamento para confirmar ou recusar o pedido.
+          </p>
+          <p>
+            Numero do cartao, codigo de seguranca e senha nunca fazem parte dos
+            enderecos salvos nem do cadastro do cliente.
           </p>
         </section>
 

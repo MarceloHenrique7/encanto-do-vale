@@ -6,7 +6,13 @@ import {
   hasValidAdminSession,
   isAdminConfigured,
 } from '../services/admin-auth.js'
-import { findOrder, listOrders, updateOrder } from '../services/order-store.js'
+import {
+  findOrder,
+  listCompletedOrders,
+  listOrders,
+  updateOrder,
+} from '../services/order-store.js'
+import { listUsers } from '../services/user-store.js'
 import { expirePendingOrders } from '../services/order-expiration.js'
 import { subscribeToOrderChanges } from '../services/order-events.js'
 
@@ -76,19 +82,68 @@ export async function getAdminOrders(_request, response) {
   return response.json({ orders })
 }
 
+export async function getAdminCustomers(_request, response) {
+  const [users, orders] = await Promise.all([
+    listUsers(),
+    listCompletedOrders(),
+  ])
+  const customers = new Map(
+    users.map((user) => [
+      user.id,
+      {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        orders: [],
+      },
+    ]),
+  )
+
+  for (const order of orders) {
+    const fallbackId = `phone:${order.customer?.phone ?? order.id}`
+    const customerId = order.user_id ?? fallbackId
+    const customer = customers.get(customerId) ?? {
+      id: customerId,
+      name: order.customer?.name ?? 'Cliente',
+      phone: order.customer?.phone ?? '',
+      orders: [],
+    }
+    customer.orders.push(order)
+    customers.set(customerId, customer)
+  }
+
+  const result = [...customers.values()]
+    .map((customer) => ({
+      ...customer,
+      order_count: customer.orders.length,
+      total_spent: customer.orders
+        .reduce((total, order) => total + Number(order.total ?? 0), 0),
+      last_order_at: customer.orders[0]?.created_at ?? null,
+    }))
+    .sort((first, second) =>
+      String(second.last_order_at ?? '').localeCompare(String(first.last_order_at ?? '')),
+    )
+
+  return response.json({ customers: result })
+}
+
 export function getAdminOrderStream(request, response) {
   response.status(200)
   response.setHeader('Content-Type', 'text/event-stream')
   response.setHeader('Cache-Control', 'no-cache, no-transform')
   response.setHeader('Connection', 'keep-alive')
+  response.setHeader('X-Accel-Buffering', 'no')
   response.flushHeaders?.()
   response.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`)
+  response.flush?.()
 
   const unsubscribe = subscribeToOrderChanges((event) => {
     response.write(`data: ${JSON.stringify(event)}\n\n`)
+    response.flush?.()
   })
   const heartbeat = setInterval(() => {
     response.write(': heartbeat\n\n')
+    response.flush?.()
   }, 15_000)
 
   request.on('close', () => {

@@ -12,9 +12,19 @@ import {
   isUsingTestCredentials,
   mapPaymentStatus,
 } from '../services/mercado-pago.js'
-import { createOrder, resetOrdersForTests } from '../services/order-store.js'
+import {
+  createOrder,
+  findOrder,
+  incrementPaymentAttempts,
+  resetOrdersForTests,
+} from '../services/order-store.js'
 import { updateOrder } from '../services/order-store.js'
 import { resetUsersForTests } from '../services/user-store.js'
+import { resetAddressesForTests } from '../services/address-store.js'
+import {
+  paymentBodyFrom,
+  paymentNotificationUrl,
+} from '../controllers/checkout.js'
 
 const ordersFile = path.join(
   os.tmpdir(),
@@ -28,9 +38,14 @@ const loyaltyFile = path.join(
   os.tmpdir(),
   `encanto-loyalty-orders-test-${process.pid}.json`,
 )
+const addressesFile = path.join(
+  os.tmpdir(),
+  `encanto-addresses-orders-test-${process.pid}.json`,
+)
 process.env.ORDERS_FILE = ordersFile
 process.env.USERS_FILE = usersFile
 process.env.LOYALTY_FILE = loyaltyFile
+process.env.ADDRESSES_FILE = addressesFile
 process.env.FRONTEND_URL = 'http://localhost:5173'
 process.env.ADMIN_PASSWORD = 'senha-forte-de-teste'
 process.env.SESSION_SECRET = 'segredo-de-sessao-com-mais-de-24-caracteres'
@@ -38,12 +53,14 @@ process.env.SESSION_SECRET = 'segredo-de-sessao-com-mais-de-24-caracteres'
 test.beforeEach(async () => {
   await resetOrdersForTests()
   await resetUsersForTests()
+  await resetAddressesForTests()
 })
 
 test.after(async () => {
   await rm(ordersFile, { force: true })
   await rm(usersFile, { force: true })
   await rm(loyaltyFile, { force: true })
+  await rm(addressesFile, { force: true })
 })
 
 async function authenticatedCustomer(app, suffix = '01') {
@@ -63,6 +80,7 @@ async function authenticatedCustomer(app, suffix = '01') {
     code: requestCode.body.development_code,
   })
   assert.equal(verification.status, 200)
+  assert.match(verification.headers['set-cookie'][0], /Max-Age=86400/)
   return agent
 }
 
@@ -117,6 +135,12 @@ test('cria e consulta pedido recalculando os valores no servidor', async () => {
   assert.equal(lookup.body.delivery_fee, 11.49)
   assert.equal(lookup.body.neighborhood, 'Centro')
   assert.equal(lookup.body.distanceKm, 7)
+  assert.equal(lookup.body.estimated_delivery_minutes, 60)
+  const savedAddresses = await customer.get('/api/addresses')
+  assert.equal(savedAddresses.status, 200)
+  assert.equal(savedAddresses.body.addresses.length, 1)
+  assert.equal(savedAddresses.body.addresses[0].address, 'Rua das Flores')
+  assert.equal(savedAddresses.body.addresses[0].isDefault, true)
 })
 
 test('bloqueia pedido para bairro fora da área atendida', async () => {
@@ -156,6 +180,58 @@ test('exige os campos de entrega e bloqueia origem CORS diferente', async () => 
   assert.equal(forbiddenOrigin.status, 403)
 })
 
+test('salva enderecos por cliente sem persistir dados de cartao', async () => {
+  const app = createApp()
+  const unauthenticated = await request(app).get('/api/addresses')
+  assert.equal(unauthenticated.status, 401)
+
+  const customer = await authenticatedCustomer(app, '15')
+  const otherCustomer = await authenticatedCustomer(app, '16')
+  const creation = await customer.post('/api/addresses').send({
+    label: 'Casa',
+    recipientName: 'Maria Cliente',
+    phone: '(75) 99999-9915',
+    address: 'Rua das Flores',
+    number: '10',
+    neighborhood: 'Centro',
+    complement: 'Portao azul',
+    card_number: '4111111111111111',
+    security_code: '123',
+  })
+
+  assert.equal(creation.status, 201)
+  assert.equal(creation.body.address.label, 'Casa')
+  assert.equal('card_number' in creation.body.address, false)
+  assert.equal('security_code' in creation.body.address, false)
+
+  const duplicate = await customer.post('/api/addresses').send({
+    label: 'Meu lar',
+    recipientName: 'Maria Cliente',
+    phone: '(75) 99999-9915',
+    address: 'Rua das Flores',
+    number: '10',
+    neighborhood: 'Centro',
+    complement: 'Portao azul',
+  })
+  assert.equal(duplicate.status, 201)
+  assert.equal(duplicate.body.address.id, creation.body.address.id)
+
+  const list = await customer.get('/api/addresses')
+  assert.equal(list.status, 200)
+  assert.equal(list.body.addresses.length, 1)
+  assert.equal(list.body.addresses[0].label, 'Meu lar')
+
+  const forbiddenDelete = await otherCustomer.delete(
+    `/api/addresses/${creation.body.address.id}`,
+  )
+  assert.equal(forbiddenDelete.status, 404)
+
+  const removal = await customer.delete(
+    `/api/addresses/${creation.body.address.id}`,
+  )
+  assert.equal(removal.status, 204)
+})
+
 test('nao aceita pagamento em dinheiro na entrega', async () => {
   const app = createApp()
   const customer = await authenticatedCustomer(app, '03')
@@ -182,6 +258,58 @@ test('mapeia status do Mercado Pago para o pedido interno', () => {
   assert.equal(mapPaymentStatus('in_process'), 'waiting_payment')
   assert.equal(mapPaymentStatus('rejected'), 'failed')
   assert.equal(mapPaymentStatus('refunded'), 'failed')
+})
+
+test('nao envia notification_url local e aceita URL publica da Hostinger', () => {
+  const previousBackendUrl = process.env.BACKEND_URL
+  const previousPublicSiteUrl = process.env.PUBLIC_SITE_URL
+  const previousRenderUrl = process.env.RENDER_EXTERNAL_URL
+  const localRequest = {
+    protocol: 'http',
+    get: () => 'localhost:3000',
+  }
+
+  delete process.env.BACKEND_URL
+  process.env.PUBLIC_SITE_URL = 'http://localhost:5173'
+  delete process.env.RENDER_EXTERNAL_URL
+  assert.equal(paymentNotificationUrl(localRequest), '')
+  const order = {
+    id: 'pedido-teste',
+    total: 25,
+    customer: { name: 'Cliente Teste', phone: '5575999999999' },
+    delivery_method: 'delivery',
+    items: [{ id: 'produto', name: 'Produto', quantity: 1, unit_price: 25 }],
+  }
+  const pixBody = paymentBodyFrom(
+    order,
+    { payment_method_id: 'pix', payer: { email: 'cliente@example.com' } },
+    localRequest,
+  )
+  const cardBody = paymentBodyFrom(
+    order,
+    {
+      payment_method_id: 'visa',
+      token: 'token-de-cartao',
+      installments: 1,
+      payer: { email: 'cliente@example.com' },
+    },
+    localRequest,
+  )
+  assert.equal('notification_url' in pixBody, false)
+  assert.equal('notification_url' in cardBody, false)
+
+  process.env.BACKEND_URL = 'https://delivery.exemplo.com.br'
+  assert.equal(
+    paymentNotificationUrl(localRequest),
+    'https://delivery.exemplo.com.br/api/webhooks/mercadopago',
+  )
+
+  if (previousBackendUrl === undefined) delete process.env.BACKEND_URL
+  else process.env.BACKEND_URL = previousBackendUrl
+  if (previousPublicSiteUrl === undefined) delete process.env.PUBLIC_SITE_URL
+  else process.env.PUBLIC_SITE_URL = previousPublicSiteUrl
+  if (previousRenderUrl === undefined) delete process.env.RENDER_EXTERNAL_URL
+  else process.env.RENDER_EXTERNAL_URL = previousRenderUrl
 })
 
 test('permite avançar um pedido com pagamento na entrega', async () => {
@@ -238,6 +366,8 @@ test('protege o gestor e permite avançar um pedido pago', async () => {
   const app = createApp()
   const unauthenticated = await request(app).get('/api/admin/orders')
   assert.equal(unauthenticated.status, 401)
+  const unauthenticatedCustomers = await request(app).get('/api/admin/customers')
+  assert.equal(unauthenticatedCustomers.status, 401)
 
   const manager = request.agent(app)
   const login = await manager
@@ -245,6 +375,7 @@ test('protege o gestor e permite avançar um pedido pago', async () => {
     .send({ password: 'senha-forte-de-teste' })
   assert.equal(login.status, 200)
   assert.match(login.headers['set-cookie'][0], /HttpOnly/)
+  assert.match(login.headers['set-cookie'][0], /Max-Age=86400/)
 
   const customer = await authenticatedCustomer(app, '03')
   const creation = await customer
@@ -280,6 +411,17 @@ test('protege o gestor e permite avançar um pedido pago', async () => {
     .send({ status: 'preparing' })
   assert.equal(update.status, 200)
   assert.equal(update.body.order.restaurant_status, 'preparing')
+
+  await manager
+    .patch(`/api/admin/orders/${creation.body.order_id}/status`)
+    .send({ status: 'completed' })
+  const customers = await manager.get('/api/admin/customers')
+  assert.equal(customers.status, 200)
+  const customerRecord = customers.body.customers.find(
+    (item) => item.phone === '+5575999999903',
+  )
+  assert.equal(customerRecord.order_count, 1)
+  assert.equal(customerRecord.orders[0].id, creation.body.order_id)
 })
 
 test('exige login no cardápio e permite criar senha no perfil', async () => {
@@ -322,7 +464,7 @@ test('exige login no cardápio e permite criar senha no perfil', async () => {
   assert.equal(passwordLogin.status, 200)
 })
 
-test('lista historico de pedidos apenas do cliente logado', async () => {
+test('lista no historico apenas pedidos finalizados do cliente logado', async () => {
   const app = createApp()
   const unauthenticated = await request(app).get('/api/orders')
   assert.equal(unauthenticated.status, 401)
@@ -351,6 +493,10 @@ test('lista historico de pedidos apenas do cliente logado', async () => {
   assert.equal(firstOrder.status, 201)
   const secondOrder = await customer.post('/api/orders').send(orderPayload)
   assert.equal(secondOrder.status, 201)
+  await updateOrder(firstOrder.body.order_id, {
+    status: 'paid',
+    restaurant_status: 'completed',
+  })
 
   const otherOrder = await otherCustomer.post('/api/orders').send({
     ...orderPayload,
@@ -363,11 +509,11 @@ test('lista historico de pedidos apenas do cliente logado', async () => {
 
   const history = await customer.get('/api/orders')
   assert.equal(history.status, 200)
-  assert.equal(history.body.orders.length, 2)
-  assert.equal(history.body.orders[0].order_id, secondOrder.body.order_id)
+  assert.equal(history.body.orders.length, 1)
+  assert.equal(history.body.orders[0].order_id, firstOrder.body.order_id)
   assert.deepEqual(
     history.body.orders.map((order) => order.order_id).sort(),
-    [firstOrder.body.order_id, secondOrder.body.order_id].sort(),
+    [firstOrder.body.order_id],
   )
   assert.equal(
     history.body.orders.some(
@@ -435,23 +581,64 @@ test('cadastra visitante pelo primeiro acesso sem codigo sms', async () => {
   assert.equal(session.body.user.phone, '+5587988028002')
 })
 
-test('cadastra e autentica automaticamente ao entrar com telefone novo', async () => {
+test('exige codigo ou senha para acessar novamente um telefone cadastrado', async () => {
   const app = createApp()
-  const customer = request.agent(app)
+  const firstAccess = request.agent(app)
+  const returningCustomer = request.agent(app)
 
-  const login = await customer.post('/api/auth/login/phone').send({
-    phone: '(87) 98802-8111',
+  const registration = await firstAccess.post('/api/auth/guest').send({
     name: 'Marcelo salvo anteriormente',
+    phone: '(87) 98802-8111',
   })
-  assert.equal(login.status, 200)
-  assert.equal(login.body.authenticated, true)
-  assert.equal(login.body.user.name, '(sem nome)')
-  assert.equal(login.body.user.phone, '+5587988028111')
+  assert.equal(registration.status, 200)
 
-  const session = await customer.get('/api/auth/session')
+  const repeatedGuest = await returningCustomer.post('/api/auth/guest').send({
+    name: 'Outra pessoa',
+    phone: '(87) 98802-8111',
+  })
+  assert.equal(repeatedGuest.status, 409)
+
+  const removedUnsafeLogin = await returningCustomer
+    .post('/api/auth/login/phone')
+    .send({ phone: '(87) 98802-8111' })
+  assert.equal(removedUnsafeLogin.status, 404)
+
+  const requestCode = await returningCustomer
+    .post('/api/auth/request-code')
+    .send({
+      purpose: 'login',
+      phone: '(87) 98802-8111',
+      channel: 'sms',
+    })
+  assert.equal(requestCode.status, 200)
+  assert.ok(requestCode.body.development_code)
+
+  const verification = await returningCustomer
+    .post('/api/auth/verify-code')
+    .send({
+      phone: '(87) 98802-8111',
+      code: requestCode.body.development_code,
+    })
+  assert.equal(verification.status, 200)
+  assert.equal(verification.body.user.name, 'Marcelo salvo anteriormente')
+
+  const session = await returningCustomer.get('/api/auth/session')
   assert.equal(session.status, 200)
   assert.equal(session.body.authenticated, true)
   assert.equal(session.body.user.phone, '+5587988028111')
+})
+
+test('limita tentativas repetidas nas rotas de autenticacao', async () => {
+  const app = createApp()
+  let response
+  for (let attempt = 0; attempt < 31; attempt += 1) {
+    response = await request(app).post('/api/auth/login/password').send({
+      phone: '(87) 98802-8222',
+      password: 'incorreta',
+    })
+  }
+  assert.equal(response.status, 429)
+  assert.ok(response.headers['retry-after'])
 })
 
 test('identifica credenciais de teste para enviar X-Test-Token', () => {
@@ -467,4 +654,28 @@ test('identifica credenciais de teste para enviar X-Test-Token', () => {
   } else {
     process.env.MERCADO_PAGO_ACCESS_TOKEN = previousToken
   }
+})
+
+test('incrementa tentativas de pagamento sem perder atualizacoes concorrentes', async () => {
+  await createOrder({
+    id: 'order-payment-attempts',
+    user_id: 'customer-payment-attempts',
+    status: 'pending',
+    restaurant_status: 'awaiting_payment',
+    payment_attempts: 0,
+    customer: {},
+    items: [],
+    subtotal: 0,
+    total: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+
+  const attempts = await Promise.all([
+    incrementPaymentAttempts('order-payment-attempts'),
+    incrementPaymentAttempts('order-payment-attempts'),
+  ])
+
+  assert.deepEqual(attempts.sort(), [1, 2])
+  assert.equal((await findOrder('order-payment-attempts')).payment_attempts, 2)
 })
