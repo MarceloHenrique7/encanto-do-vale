@@ -18,6 +18,7 @@
     "test": "node --test backend/tests/*.test.js",
     "typecheck": "tsc -p frontend/tsconfig.json --noEmit",
     "check": "npm run catalog:check && npm run test && npm run typecheck && npm run build",
+    "prebuild": "npm install --include=dev --ignore-scripts --no-audit --no-fund",
     "build": "vite build --config frontend/vite.config.ts",
     "preview": "vite preview --config frontend/vite.config.ts"
   },
