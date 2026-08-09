@@ -28,15 +28,5 @@ services:
         sync: false
       - key: SESSION_SECRET
         sync: false
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_VERIFY_SERVICE_SID
-        sync: false
-      - key: TWILIO_VERIFY_FRIENDLY_NAME
-        value: Encanto do Vale
-      - key: TWILIO_VERIFY_TEMPLATE_SID
-        sync: false
       - key: VITE_META_PIXEL_ID
         sync: false

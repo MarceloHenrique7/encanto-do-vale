@@ -1,5 +1,3 @@
-import { isPhoneProviderConfigured } from './phone-verification.js'
-
 function value(name) {
   return String(process.env[name] ?? '').trim()
 }
@@ -31,8 +29,6 @@ export function productionConfigurationErrors() {
   }
   if (!isHttpsUrl(value('FRONTEND_URL'))) errors.push('FRONTEND_URL')
   if (!isHttpsUrl(value('BACKEND_URL'))) errors.push('BACKEND_URL')
-  if (!isPhoneProviderConfigured()) errors.push('TWILIO_VERIFY')
-
   return errors
 }
 

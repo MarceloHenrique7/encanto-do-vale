@@ -52,14 +52,6 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [loginPhone, setLoginPhone] = useState('')
-  const [loginMode, setLoginMode] = useState<'code' | 'password'>('code')
-  const [loginStage, setLoginStage] = useState<'credentials' | 'verification'>(
-    'credentials',
-  )
-  const [loginChannel, setLoginChannel] = useState<'sms' | 'whatsapp'>('sms')
-  const [loginCode, setLoginCode] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [developmentCode, setDevelopmentCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -90,20 +82,12 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
   function openLogin() {
     const draft = loadGuestCustomer()
     setLoginPhone((current) => current || draft.phone)
-    setLoginStage('credentials')
-    setLoginCode('')
-    setLoginPassword('')
-    setDevelopmentCode('')
     setError('')
     setLoginOpen(true)
   }
 
   function closeLogin() {
     setLoginOpen(false)
-    setLoginStage('credentials')
-    setLoginCode('')
-    setLoginPassword('')
-    setDevelopmentCode('')
     setError('')
   }
 
@@ -130,7 +114,6 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
           setLoginPhone(phone)
           setPromptOpen(false)
           setLoginOpen(true)
-          setLoginStage('credentials')
         }
         throw new Error(data.error ?? 'Não foi possível cadastrar agora.')
       }
@@ -149,79 +132,19 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
     }
   }
 
-  async function requestLoginCode(event: FormEvent) {
+  async function loginWithPhone(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
     setError('')
     try {
-      const response = await fetch('/api/auth/request-code', {
+      const response = await fetch('/api/auth/login/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: loginPhone,
-          purpose: 'login',
-          channel: loginChannel,
-        }),
+        body: JSON.stringify({ phone: loginPhone }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.error ?? 'Não foi possível enviar o código.')
-      }
-      setDevelopmentCode(data.development_code ?? '')
-      setLoginStage('verification')
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Não foi possível enviar o código.',
-      )
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function verifyLoginCode(event: FormEvent) {
-    event.preventDefault()
-    setSubmitting(true)
-    setError('')
-    try {
-      const response = await fetch('/api/auth/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: loginPhone, code: loginCode }),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Código incorreto ou expirado.')
-      }
-      completeLogin(data)
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Não foi possível validar o código.',
-      )
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function loginWithPassword(event: FormEvent) {
-    event.preventDefault()
-    setSubmitting(true)
-    setError('')
-    try {
-      const response = await fetch('/api/auth/login/password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: loginPhone,
-          password: loginPassword,
-        }),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Celular ou senha incorretos.')
+        throw new Error(data.error ?? 'Não foi possível entrar.')
       }
       completeLogin(data)
     } catch (requestError) {
@@ -311,154 +234,26 @@ export default function CustomerAuthGate({ children }: CustomerAuthGateProps) {
             aria-labelledby="login-title"
           >
             <span className="customer-authEyebrow">Entrar</span>
-            <h2 id="login-title">
-              {loginStage === 'verification'
-                ? 'Digite o código'
-                : 'Acesse sua conta'}
-            </h2>
-            <p>
-              {loginStage === 'verification'
-                ? `Enviamos um código de segurança por ${
-                    loginChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'
-                  }.`
-                : 'Use um código de segurança ou a senha cadastrada no seu perfil.'}
-            </p>
-
-            {loginStage === 'credentials' ? (
-              <>
-                <div className="customer-authTabs">
-                  <button
-                    type="button"
-                    className={loginMode === 'code' ? 'is-active' : ''}
-                    onClick={() => {
-                      setLoginMode('code')
-                      setError('')
-                    }}
-                  >
-                    Código
-                  </button>
-                  <button
-                    type="button"
-                    className={loginMode === 'password' ? 'is-active' : ''}
-                    onClick={() => {
-                      setLoginMode('password')
-                      setError('')
-                    }}
-                  >
-                    Senha
-                  </button>
-                </div>
-                {loginMode === 'code' ? (
-                  <form onSubmit={requestLoginCode}>
-                    <label>
-                      WhatsApp
-                      <input
-                        value={loginPhone}
-                        onChange={(event) =>
-                          setLoginPhone(formatPhone(event.target.value))
-                        }
-                        inputMode="tel"
-                        autoComplete="tel"
-                        placeholder="(75) 99999-9999"
-                        autoFocus
-                      />
-                    </label>
-                    <fieldset className="customer-channelChoice">
-                      <legend>Receber código por</legend>
-                      <button
-                        type="button"
-                        className={loginChannel === 'sms' ? 'is-active' : ''}
-                        onClick={() => setLoginChannel('sms')}
-                      >
-                        SMS
-                      </button>
-                      <button
-                        type="button"
-                        className={
-                          loginChannel === 'whatsapp' ? 'is-active' : ''
-                        }
-                        onClick={() => setLoginChannel('whatsapp')}
-                      >
-                        WhatsApp
-                      </button>
-                    </fieldset>
-                    <button type="submit" disabled={submitting}>
-                      {submitting ? 'Enviando...' : 'Enviar código'}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={loginWithPassword}>
-                    <label>
-                      WhatsApp
-                      <input
-                        value={loginPhone}
-                        onChange={(event) =>
-                          setLoginPhone(formatPhone(event.target.value))
-                        }
-                        inputMode="tel"
-                        autoComplete="tel"
-                        placeholder="(75) 99999-9999"
-                        autoFocus
-                      />
-                    </label>
-                    <label>
-                      Senha
-                      <input
-                        type="password"
-                        value={loginPassword}
-                        onChange={(event) =>
-                          setLoginPassword(event.target.value)
-                        }
-                        autoComplete="current-password"
-                      />
-                    </label>
-                    <button type="submit" disabled={submitting}>
-                      {submitting ? 'Entrando...' : 'Entrar'}
-                    </button>
-                  </form>
-                )}
-              </>
-            ) : (
-              <>
-                {developmentCode ? (
-                  <p className="customer-developmentCode">
-                    Ambiente local: código {developmentCode}
-                  </p>
-                ) : null}
-                <form onSubmit={verifyLoginCode}>
-                  <label>
-                    Código de segurança
-                    <input
-                      className="customer-codeInput"
-                      value={loginCode}
-                      onChange={(event) =>
-                        setLoginCode(
-                          event.target.value.replace(/\D/g, '').slice(0, 10),
-                        )
-                      }
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      autoFocus
-                    />
-                  </label>
-                  <button type="submit" disabled={submitting}>
-                    {submitting ? 'Validando...' : 'Confirmar código'}
-                  </button>
-                </form>
-                <button
-                  type="button"
-                  className="customer-authTextButton"
-                  onClick={() => {
-                    setLoginStage('credentials')
-                    setLoginCode('')
-                    setDevelopmentCode('')
-                    setError('')
-                  }}
-                >
-                  Voltar e reenviar
-                </button>
-              </>
-            )}
+            <h2 id="login-title">Acesse sua conta</h2>
+            <p>Informe somente o número cadastrado.</p>
+            <form onSubmit={loginWithPhone}>
+              <label>
+                WhatsApp
+                <input
+                  value={loginPhone}
+                  onChange={(event) =>
+                    setLoginPhone(formatPhone(event.target.value))
+                  }
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="(75) 99999-9999"
+                  autoFocus
+                />
+              </label>
+              <button type="submit" disabled={submitting}>
+                {submitting ? 'Entrando...' : 'Entrar'}
+              </button>
+            </form>
             {error ? <p className="customer-authError">{error}</p> : null}
           </section>
         </div>

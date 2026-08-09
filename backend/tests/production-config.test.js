@@ -38,7 +38,7 @@ test('reporta configuracao incompleta sem derrubar toda a aplicacao', () => {
   const errors = productionConfigurationErrors()
   assert.ok(errors.includes('DATABASE_URL'))
   assert.ok(errors.includes('MERCADO_PAGO_ACCESS_TOKEN'))
-  assert.ok(errors.includes('TWILIO_VERIFY'))
+  assert.equal(errors.includes('TWILIO_VERIFY'), false)
   const originalWarn = console.warn
   const warnings = []
   console.warn = (message) => warnings.push(String(message))

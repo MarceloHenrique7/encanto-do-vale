@@ -39,6 +39,31 @@ function sessionIsConfigured() {
   return String(process.env.SESSION_SECRET ?? '').length >= 24
 }
 
+export async function postPhoneLogin(request, response) {
+  if (!sessionIsConfigured()) {
+    return response.status(503).json({
+      error: 'A autenticacao ainda nao foi configurada no servidor.',
+    })
+  }
+
+  const phone = normalizeBrazilianPhone(request.body?.phone)
+  if (!phone) {
+    return response.status(400).json({
+      error: 'Informe um celular valido com DDD.',
+    })
+  }
+
+  const user = await findUserByPhone(phone)
+  if (!user?.verified) {
+    return response.status(404).json({
+      error: 'Celular nao cadastrado. Faca seu primeiro acesso com nome e numero.',
+    })
+  }
+
+  createCustomerSession(response, user.id)
+  return response.json({ authenticated: true, user: publicUser(user) })
+}
+
 export async function getCustomerSession(request, response) {
   const user = await getCustomerFromRequest(request)
   return response.json({

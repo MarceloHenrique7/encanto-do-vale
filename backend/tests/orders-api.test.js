@@ -66,21 +66,12 @@ test.after(async () => {
 async function authenticatedCustomer(app, suffix = '01') {
   const agent = request.agent(app)
   const phone = `(75) 99999-99${suffix}`
-  const requestCode = await agent.post('/api/auth/request-code').send({
-    purpose: 'register',
+  const access = await agent.post('/api/auth/guest').send({
     name: 'Maria Cliente',
     phone,
-    channel: 'sms',
   })
-  assert.equal(requestCode.status, 200)
-  assert.ok(requestCode.body.development_code)
-
-  const verification = await agent.post('/api/auth/verify-code').send({
-    phone,
-    code: requestCode.body.development_code,
-  })
-  assert.equal(verification.status, 200)
-  assert.match(verification.headers['set-cookie'][0], /Max-Age=86400/)
+  assert.equal(access.status, 200)
+  assert.match(access.headers['set-cookie'][0], /Max-Age=86400/)
   return agent
 }
 
@@ -424,7 +415,7 @@ test('protege o gestor e permite avançar um pedido pago', async () => {
   assert.equal(customerRecord.orders[0].id, creation.body.order_id)
 })
 
-test('exige login no cardápio e permite criar senha no perfil', async () => {
+test('exige login no cardápio e permite atualizar o perfil', async () => {
   const app = createApp()
   const guest = request.agent(app)
   const guestOrder = await guest.post('/api/orders').send({
@@ -457,11 +448,10 @@ test('exige login no cardápio e permite criar senha no perfil', async () => {
   assert.equal(profile.body.user.has_password, true)
 
   await customer.post('/api/auth/logout')
-  const passwordLogin = await customer.post('/api/auth/login/password').send({
+  const phoneLogin = await customer.post('/api/auth/login/phone').send({
     phone: '(75) 99999-9904',
-    password: 'senha-segura-123',
   })
-  assert.equal(passwordLogin.status, 200)
+  assert.equal(phoneLogin.status, 200)
 })
 
 test('lista no historico apenas pedidos finalizados do cliente logado', async () => {
@@ -581,7 +571,7 @@ test('cadastra visitante pelo primeiro acesso sem codigo sms', async () => {
   assert.equal(session.body.user.phone, '+5587988028002')
 })
 
-test('exige codigo ou senha para acessar novamente um telefone cadastrado', async () => {
+test('acessa novamente uma conta usando apenas o telefone cadastrado', async () => {
   const app = createApp()
   const firstAccess = request.agent(app)
   const returningCustomer = request.agent(app)
@@ -598,43 +588,38 @@ test('exige codigo ou senha para acessar novamente um telefone cadastrado', asyn
   })
   assert.equal(repeatedGuest.status, 409)
 
-  const removedUnsafeLogin = await returningCustomer
+  const phoneLogin = await returningCustomer
     .post('/api/auth/login/phone')
     .send({ phone: '(87) 98802-8111' })
-  assert.equal(removedUnsafeLogin.status, 404)
-
-  const requestCode = await returningCustomer
-    .post('/api/auth/request-code')
-    .send({
-      purpose: 'login',
-      phone: '(87) 98802-8111',
-      channel: 'sms',
-    })
-  assert.equal(requestCode.status, 200)
-  assert.ok(requestCode.body.development_code)
-
-  const verification = await returningCustomer
-    .post('/api/auth/verify-code')
-    .send({
-      phone: '(87) 98802-8111',
-      code: requestCode.body.development_code,
-    })
-  assert.equal(verification.status, 200)
-  assert.equal(verification.body.user.name, 'Marcelo salvo anteriormente')
+  assert.equal(phoneLogin.status, 200)
+  assert.equal(phoneLogin.body.user.name, 'Marcelo salvo anteriormente')
 
   const session = await returningCustomer.get('/api/auth/session')
   assert.equal(session.status, 200)
   assert.equal(session.body.authenticated, true)
   assert.equal(session.body.user.phone, '+5587988028111')
+
+  assert.equal(
+    (await request(app).post('/api/auth/request-code').send({
+      phone: '(87) 98802-8111',
+    })).status,
+    404,
+  )
+  assert.equal(
+    (await request(app).post('/api/auth/verify-code').send({
+      phone: '(87) 98802-8111',
+      code: '123456',
+    })).status,
+    404,
+  )
 })
 
 test('limita tentativas repetidas nas rotas de autenticacao', async () => {
   const app = createApp()
   let response
   for (let attempt = 0; attempt < 31; attempt += 1) {
-    response = await request(app).post('/api/auth/login/password').send({
+    response = await request(app).post('/api/auth/login/phone').send({
       phone: '(87) 98802-8222',
-      password: 'incorreta',
     })
   }
   assert.equal(response.status, 429)

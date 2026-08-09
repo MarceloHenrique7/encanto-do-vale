@@ -30,9 +30,7 @@ import {
   patchCustomerProfile,
   postGuestAccess,
   postCustomerLogout,
-  postPasswordLogin,
-  postRequestCode,
-  postVerifyCode,
+  postPhoneLogin,
 } from './controllers/auth.js'
 import { getCustomerFromRequest, requireCustomer } from './services/customer-auth.js'
 import {
@@ -196,9 +194,7 @@ export function createApp() {
   app.get('/api/delivery-zones', getDeliveryZones)
   app.post('/api/calculate-delivery', deliveryRateLimit, postCalculateDelivery)
   app.get('/api/auth/session', getCustomerSession)
-  app.post('/api/auth/request-code', authRateLimit, postRequestCode)
-  app.post('/api/auth/verify-code', authRateLimit, postVerifyCode)
-  app.post('/api/auth/login/password', authRateLimit, postPasswordLogin)
+  app.post('/api/auth/login/phone', authRateLimit, postPhoneLogin)
   app.post('/api/auth/guest', authRateLimit, postGuestAccess)
   app.post('/api/auth/logout', postCustomerLogout)
   app.patch('/api/auth/profile', requireCustomer, patchCustomerProfile)
